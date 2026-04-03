@@ -1,0 +1,52 @@
+---
+// Nav.astro — shared top navigation bar used across all pages
+// activeSection: highlights the matching nav item (optional)
+interface Props {
+  activeSection?: 'about' | 'projects' | 'blog' | '';
+}
+const { activeSection = '' } = Astro.props;
+
+const active = 'text-[var(--color-text)]';
+const inactive = 'text-[var(--color-muted)] hover:text-[var(--color-text)]';
+---
+
+<header class="border-b border-[var(--color-border)]">
+  <div class="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+    <a
+      href="/"
+      class="font-mono text-sm font-medium text-[var(--color-accent)] tracking-wide hover:opacity-80 transition-opacity"
+    >
+      cyferlawyn
+    </a>
+    <nav aria-label="Site navigation">
+      <ul class="flex items-center gap-6 text-sm">
+        <li>
+          <a
+            href="/#about"
+            class={`transition-colors duration-150 ${activeSection === 'about' ? active : inactive}`}
+          >About</a>
+        </li>
+        <li>
+          <a
+            href="/#projects"
+            class={`transition-colors duration-150 ${activeSection === 'projects' ? active : inactive}`}
+          >Projects</a>
+        </li>
+        <li>
+          <a
+            href="/blog"
+            class={`transition-colors duration-150 ${activeSection === 'blog' ? active : inactive}`}
+          >Blog</a>
+        </li>
+        <li>
+          <a
+            href="https://github.com/cyferlawyn"
+            target="_blank"
+            rel="noopener noreferrer"
+            class={`transition-colors duration-150 ${inactive}`}
+          >GitHub</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>

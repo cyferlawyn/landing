@@ -1,0 +1,247 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+---
+
+<Layout
+  title="CommitCraft — AI commit messages, entirely on-device"
+  description="CommitCraft generates conventional commit messages from your staged diff using a local AI model. No API keys. No cloud. No code leaves your machine."
+>
+  <Nav activeSection="projects" />
+
+  <main>
+
+    <!-- ── Hero ─────────────────────────────────────────────────────────── -->
+    <section class="max-w-4xl mx-auto px-6 pt-24 pb-20 text-center">
+      <!-- Live badge -->
+      <div class="inline-flex items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1 text-xs font-mono text-[var(--color-muted)] mb-8">
+        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        VS Code Extension
+      </div>
+
+      <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight text-[var(--color-text)] leading-[1.1] mb-6">
+        Commit messages written<br />
+        <span class="text-[var(--color-accent)]">by local AI</span>
+      </h1>
+
+      <p class="text-lg text-[var(--color-muted)] leading-relaxed max-w-xl mx-auto mb-10">
+        CommitCraft reads your staged diff and generates a conventional commit message
+        using an on-device model. No API keys. No internet. No code ever leaves your machine.
+      </p>
+
+      <div class="flex flex-wrap items-center justify-center gap-3">
+        <a
+          href="https://marketplace.visualstudio.com/items?itemName=cyferlawyn.cyferlawyn-commitcraft"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="inline-flex items-center gap-2 rounded-md bg-[var(--color-accent)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-dim)]"
+        >
+          Install Free — VS Code
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+            <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+            <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+          </svg>
+        </a>
+        <a
+          href="#pricing"
+          class="inline-flex items-center gap-2 rounded-md border border-[var(--color-border)] px-5 py-2.5 text-sm text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text)]"
+        >
+          Buy License — $9
+        </a>
+      </div>
+
+      <!-- Terminal demo -->
+      <div class="mt-16 mx-auto max-w-xl text-left">
+        <div class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+          <!-- Window chrome -->
+          <div class="flex items-center gap-2 border-b border-[var(--color-border)] px-4 py-3">
+            <span class="h-3 w-3 rounded-full bg-[#ff5f57]"></span>
+            <span class="h-3 w-3 rounded-full bg-[#febc2e]"></span>
+            <span class="h-3 w-3 rounded-full bg-[#28c840]"></span>
+            <span class="ml-2 font-mono text-xs text-[var(--color-muted)]">Source Control — CommitCraft</span>
+          </div>
+          <!-- Body -->
+          <div class="px-6 py-5 font-mono text-xs leading-7">
+            <p class="text-[var(--color-muted)]">$ git diff --staged</p>
+            <p class="text-[var(--color-muted)]">&nbsp; + validateToken(req.headers.authorization)</p>
+            <p class="text-[var(--color-muted)]">&nbsp; + if (!token) return res.status(401)...</p>
+            <p class="mt-2 text-[var(--color-muted)]">✦ CommitCraft generating… <span class="text-emerald-400">(2.4s)</span></p>
+            <p class="mt-2">
+              <span class="text-emerald-400">✔</span>
+              <span class="text-[var(--color-text)]"> fix(auth): return 401 when authorization header is missing</span>
+              <span class="inline-block w-2 h-[1em] bg-[var(--color-accent)] align-text-bottom animate-pulse ml-0.5"></span>
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Features ──────────────────────────────────────────────────────── -->
+    <section id="features" class="border-t border-[var(--color-border)]">
+      <div class="max-w-4xl mx-auto px-6 py-20">
+        <h2 class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-3 text-center">
+          Why CommitCraft
+        </h2>
+        <p class="text-2xl font-semibold tracking-tight text-[var(--color-text)] text-center mb-12">
+          Everything local. Nothing compromised.
+        </p>
+
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[
+            {
+              icon: '🔒',
+              title: 'Fully offline',
+              body: 'The AI model runs entirely on your CPU. Your code never touches a remote server — not even for license validation.',
+            },
+            {
+              icon: '⚡',
+              title: 'Fast enough',
+              body: 'Qwen2.5-Coder 3B generates a commit message in 2–6 seconds on a typical laptop CPU. No GPU required.',
+            },
+            {
+              icon: '📐',
+              title: 'Conventional commits',
+              body: 'Outputs type(scope): subject format every time. Respects your commitlint config when present.',
+            },
+            {
+              icon: '🔑',
+              title: 'One-time purchase',
+              body: 'Pay once, use forever. No subscription, no seat limits, no expiry. License validated offline via Ed25519 signature.',
+            },
+            {
+              icon: '🧩',
+              title: 'Zero config',
+              body: 'Install the extension, click the sparkle icon in the Source Control panel. The model downloads itself on first use.',
+            },
+            {
+              icon: '📖',
+              title: 'Open source',
+              body: 'Extension source is MIT-licensed on GitHub. Audit the code, verify there\'s no telemetry, build it yourself.',
+            },
+          ].map(({ icon, title, body }) => (
+            <div class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
+              <span class="text-2xl mb-4 block" aria-hidden="true">{icon}</span>
+              <h3 class="text-sm font-semibold text-[var(--color-text)] mb-2">{title}</h3>
+              <p class="text-sm text-[var(--color-muted)] leading-relaxed">{body}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- ── How it works ───────────────────────────────────────────────────── -->
+    <section id="how-it-works" class="border-t border-[var(--color-border)]">
+      <div class="max-w-4xl mx-auto px-6 py-20">
+        <h2 class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-3 text-center">
+          How it works
+        </h2>
+        <p class="text-2xl font-semibold tracking-tight text-[var(--color-text)] text-center mb-12">
+          Three steps, no surprises
+        </p>
+
+        <ol class="max-w-lg mx-auto space-y-0">
+          {[
+            {
+              n: '1',
+              title: 'Install & download model',
+              body: 'Install CommitCraft from the VS Code Marketplace. On first use it downloads the Qwen2.5-Coder 3B GGUF model (~1.9 GB) to ~/.commitcraft/models/ — once, then never again.',
+            },
+            {
+              n: '2',
+              title: 'Stage your changes',
+              body: 'Stage your files as normal with git add or the VS Code Source Control panel.',
+            },
+            {
+              n: '3',
+              title: 'Click the sparkle',
+              body: 'Hit the ✦ button in the Source Control title bar. CommitCraft reads the diff, runs the model locally, and writes the commit message directly into the input box.',
+            },
+          ].map(({ n, title, body }, i, arr) => (
+            <li class="flex gap-5 relative pb-10 last:pb-0">
+              {i < arr.length - 1 && (
+                <div class="absolute left-[19px] top-11 bottom-0 w-px bg-[var(--color-border)]" />
+              )}
+              <div class="shrink-0 h-10 w-10 rounded-full border border-[var(--color-accent)]/40 bg-[var(--color-accent)]/10 flex items-center justify-center font-mono text-xs font-bold text-[var(--color-accent)]">
+                {n}
+              </div>
+              <div class="pt-2">
+                <h3 class="text-sm font-semibold text-[var(--color-text)] mb-1">{title}</h3>
+                <p class="text-sm text-[var(--color-muted)] leading-relaxed">{body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
+
+    <!-- ── Pricing ────────────────────────────────────────────────────────── -->
+    <section id="pricing" class="border-t border-[var(--color-border)]">
+      <div class="max-w-4xl mx-auto px-6 py-20">
+        <h2 class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-3 text-center">
+          Pricing
+        </h2>
+        <p class="text-2xl font-semibold tracking-tight text-[var(--color-text)] text-center mb-12">
+          Simple, one-time pricing
+        </p>
+
+        <div class="max-w-sm mx-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-8 text-center hover:border-[var(--color-accent)]/40 hover:shadow-[0_0_32px_var(--color-accent-glow)] transition-all duration-200">
+          <p class="text-sm text-[var(--color-muted)] mb-2">CommitCraft License</p>
+          <p class="text-5xl font-semibold tracking-tight text-[var(--color-text)] mb-1">$9</p>
+          <p class="text-xs text-[var(--color-muted)] mb-8">one-time · no subscription · no expiry</p>
+
+          <ul class="text-sm text-left space-y-0 mb-8 divide-y divide-[var(--color-border)]">
+            {[
+              'Unlimited generations',
+              'All future updates',
+              'Works on Windows, macOS, Linux',
+              'Offline license validation',
+              'License key emailed instantly',
+            ].map((item) => (
+              <li class="flex items-center gap-3 py-2.5">
+                <span class="text-emerald-400 font-bold shrink-0">✓</span>
+                <span class="text-[var(--color-text)]">{item}</span>
+              </li>
+            ))}
+          </ul>
+
+          <a
+            href="https://cyferlawyn.gumroad.com/l/commitcraft"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center justify-center gap-2 w-full rounded-md bg-[var(--color-accent)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-dim)]"
+          >
+            Buy License — $9
+          </a>
+          <p class="mt-4 text-xs text-[var(--color-muted)]">
+            Free 14-day trial — no license needed to try it.
+          </p>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Footer ─────────────────────────────────────────────────────────── -->
+  <footer class="border-t border-[var(--color-border)]">
+    <div class="max-w-4xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p class="font-mono text-xs text-[var(--color-muted)]">
+        &copy; {new Date().getFullYear()} cyferlawyn &mdash;
+        CommitCraft is open-source software. Source code licensed MIT. Compiled binaries under commercial license.
+      </p>
+      <nav>
+        <ul class="flex items-center gap-5 text-xs text-[var(--color-muted)]">
+          <li>
+            <a href="https://github.com/cyferlawyn/commitcraft-vscode" target="_blank" rel="noopener noreferrer" class="hover:text-[var(--color-text)] transition-colors">GitHub</a>
+          </li>
+          <li>
+            <a href="https://marketplace.visualstudio.com/items?itemName=cyferlawyn.cyferlawyn-commitcraft" target="_blank" rel="noopener noreferrer" class="hover:text-[var(--color-text)] transition-colors">Marketplace</a>
+          </li>
+          <li>
+            <a href="https://cyferlawyn.gumroad.com/l/commitcraft" target="_blank" rel="noopener noreferrer" class="hover:text-[var(--color-text)] transition-colors">Buy License</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </footer>
+</Layout>

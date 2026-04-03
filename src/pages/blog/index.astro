@@ -1,6 +1,7 @@
 ---
 import { getCollection } from 'astro:content';
 import Layout from '../../layouts/Layout.astro';
+import Nav from '../../components/Nav.astro';
 
 const posts = (await getCollection('blog', ({ data }) => !data.draft))
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
@@ -14,28 +15,7 @@ const formatDate = (date: Date) =>
   description="Thoughts on software architecture, developer tooling, cloud-native systems, and AI orchestration."
 >
   <!-- Top bar -->
-  <header class="border-b border-[var(--color-border)]">
-    <div class="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
-      <a
-        href="/"
-        class="font-mono text-sm font-medium text-[var(--color-accent)] tracking-wide hover:opacity-80 transition-opacity"
-      >
-        cyferlawyn
-      </a>
-      <nav>
-        <ul class="flex items-center gap-6 text-sm text-[var(--color-muted)]">
-          <li><a href="/#about" class="hover:text-[var(--color-text)] transition-colors">About</a></li>
-          <li><a href="/#projects" class="hover:text-[var(--color-text)] transition-colors">Projects</a></li>
-          <li>
-            <a href="/blog" class="text-[var(--color-text)] transition-colors">Blog</a>
-          </li>
-          <li>
-            <a href="https://github.com/cyferlawyn" target="_blank" rel="noopener noreferrer" class="hover:text-[var(--color-text)] transition-colors">GitHub</a>
-          </li>
-        </ul>
-      </nav>
-    </div>
-  </header>
+  <Nav activeSection="blog" />
 
   <main class="max-w-4xl mx-auto px-6 py-20 flex-1">
     <div class="mb-12">
