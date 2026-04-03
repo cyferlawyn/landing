@@ -1,0 +1,72 @@
+---
+// About.astro — bio section
+---
+
+<section id="about" class="border-t border-[var(--color-border)]">
+  <div class="max-w-4xl mx-auto px-6 py-20">
+    <h2 class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-8">
+      About
+    </h2>
+    <div class="grid md:grid-cols-[1fr_2fr] gap-12 items-start">
+      <!-- Left: identity + tenure stats -->
+      <div class="space-y-5">
+        <div class="space-y-1">
+          <p class="text-[var(--color-text)] font-medium text-lg">cyferlawyn</p>
+          <p class="text-[var(--color-muted)] text-sm">Senior Software Architect</p>
+        </div>
+        <dl class="space-y-3 text-sm">
+          <div>
+            <dt class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-0.5">Industry since</dt>
+            <dd class="text-[var(--color-text)]">2008</dd>
+          </div>
+          <div>
+            <dt class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-0.5">Architect since</dt>
+            <dd class="text-[var(--color-text)]">2018</dd>
+          </div>
+        </dl>
+      </div>
+
+      <!-- Right: bio copy + focus areas -->
+      <div class="space-y-6">
+        <div class="space-y-4 text-[var(--color-muted)] leading-relaxed text-sm">
+          <p>
+            I've been working in software since 2008, first as a full-stack engineer
+            and since 2018 as a software architect. Over that time my focus has
+            shifted from building individual features to shaping the systems those
+            features live in — their boundaries, their failure modes, and the
+            contracts between them.
+          </p>
+          <p>
+            My technical roots are in message-oriented middleware. The discipline of
+            designing for asynchrony, back-pressure, and eventual consistency still
+            informs how I approach distributed problems today. More recently that work
+            has evolved into cloud-native architecture, microservices, and
+            behaviour-driven design — building systems that are observable, testable,
+            and honest about what they do.
+          </p>
+          <p>
+            Lately I've been spending time on AI from an orchestration angle:
+            how models fit into larger systems, where the boundaries of reliability
+            sit, and how to use them without handing over control. That interest
+            directly shapes the tools I build.
+          </p>
+        </div>
+
+        <!-- Focus area tags -->
+        <div class="flex flex-wrap gap-2 pt-2">
+          {[
+            'Message-oriented Middleware',
+            'Cloud-native',
+            'Microservice Architecture',
+            'Behaviour-driven Design',
+            'AI Orchestration',
+          ].map((area) => (
+            <span class="rounded border border-[var(--color-border)] px-2.5 py-1 font-mono text-xs text-[var(--color-muted)]">
+              {area}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

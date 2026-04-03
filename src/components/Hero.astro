@@ -1,0 +1,57 @@
+---
+// Hero.astro — top section with name, tagline, and quick nav
+---
+
+<header class="border-b border-[var(--color-border)]">
+  <div class="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+    <span class="font-mono text-sm font-medium text-[var(--color-accent)] tracking-wide">
+      cyferlawyn
+    </span>
+    <nav>
+      <ul class="flex items-center gap-6 text-sm text-[var(--color-muted)]">
+        <li>
+          <a
+            href="#about"
+            class="hover:text-[var(--color-text)] transition-colors duration-150"
+          >About</a>
+        </li>
+        <li>
+          <a
+            href="#projects"
+            class="hover:text-[var(--color-text)] transition-colors duration-150"
+          >Projects</a>
+        </li>
+        <li>
+          <a
+            href="/blog"
+            class="hover:text-[var(--color-text)] transition-colors duration-150"
+          >Blog</a>
+        </li>
+        <li>
+          <a
+            href="https://github.com/cyferlawyn"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-[var(--color-text)] transition-colors duration-150"
+          >GitHub</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<section class="max-w-4xl mx-auto px-6 pt-24 pb-20">
+  <div class="max-w-2xl">
+    <p class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-4">
+      Software Architect &amp; Tool Builder
+    </p>
+    <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight text-[var(--color-text)] leading-[1.1] mb-6">
+      Building tools that<br />
+      <span class="text-[var(--color-accent)]">stay out of your way.</span>
+    </h1>
+    <p class="text-lg text-[var(--color-muted)] leading-relaxed">
+      I design and build developer tooling with a focus on simplicity,
+      privacy, and correctness. No SaaS lock-in, no telemetry, no surprises.
+    </p>
+  </div>
+</section>

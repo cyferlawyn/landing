@@ -1,0 +1,98 @@
+---
+import { getCollection, render } from 'astro:content';
+import Layout from '../../layouts/Layout.astro';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog', ({ data }) => !data.draft);
+  return posts.map((post) => ({
+    params: { slug: post.id },
+    props: { post },
+  }));
+}
+
+const { post } = Astro.props;
+const { Content } = await render(post);
+
+const formatDate = (date: Date) =>
+  date.toLocaleDateString('en-GB', { year: 'numeric', month: 'long', day: 'numeric' });
+---
+
+<Layout title={`${post.data.title} — cyferlawyn`} description={post.data.description}>
+  <!-- Top bar -->
+  <header class="border-b border-[var(--color-border)]">
+    <div class="max-w-4xl mx-auto px-6 py-5 flex items-center justify-between">
+      <a
+        href="/"
+        class="font-mono text-sm font-medium text-[var(--color-accent)] tracking-wide hover:opacity-80 transition-opacity"
+      >
+        cyferlawyn
+      </a>
+      <nav>
+        <ul class="flex items-center gap-6 text-sm text-[var(--color-muted)]">
+          <li><a href="/#about" class="hover:text-[var(--color-text)] transition-colors">About</a></li>
+          <li><a href="/#projects" class="hover:text-[var(--color-text)] transition-colors">Projects</a></li>
+          <li><a href="/blog" class="hover:text-[var(--color-text)] transition-colors">Blog</a></li>
+          <li>
+            <a href="https://github.com/cyferlawyn" target="_blank" rel="noopener noreferrer" class="hover:text-[var(--color-text)] transition-colors">GitHub</a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </header>
+
+  <main class="max-w-4xl mx-auto px-6 py-20 flex-1">
+    <!-- Back link -->
+    <a
+      href="/blog"
+      class="inline-flex items-center gap-1.5 font-mono text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors mb-12"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+        <path fill-rule="evenodd" d="M15 8a.5.5 0 0 0-.5-.5H2.707l3.147-3.146a.5.5 0 1 0-.708-.708l-4 4a.5.5 0 0 0 0 .708l4 4a.5.5 0 0 0 .708-.708L2.707 8.5H14.5A.5.5 0 0 0 15 8z"/>
+      </svg>
+      All posts
+    </a>
+
+    <!-- Post header -->
+    <div class="mb-12 max-w-2xl">
+      {post.data.tags.length > 0 && (
+        <div class="flex flex-wrap gap-2 mb-4">
+          {post.data.tags.map((tag: string) => (
+            <span class="rounded border border-[var(--color-border)] px-2 py-0.5 font-mono text-xs text-[var(--color-muted)]">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+      <h1 class="text-3xl sm:text-4xl font-semibold tracking-tight text-[var(--color-text)] leading-tight mb-4">
+        {post.data.title}
+      </h1>
+      <p class="text-[var(--color-muted)] text-sm leading-relaxed mb-4">
+        {post.data.description}
+      </p>
+      <time
+        datetime={post.data.date.toISOString()}
+        class="font-mono text-xs text-[var(--color-muted)]"
+      >
+        {formatDate(post.data.date)}
+      </time>
+    </div>
+
+    <hr class="border-[var(--color-border)] mb-12" />
+
+    <!-- Post body -->
+    <article class="prose-blog max-w-2xl">
+      <Content />
+    </article>
+  </main>
+
+  <footer class="border-t border-[var(--color-border)]">
+    <div class="max-w-4xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <p class="font-mono text-xs text-[var(--color-muted)]">
+        &copy; {new Date().getFullYear()} cyferlawyn
+      </p>
+      <a href="/blog" class="text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors">
+        &larr; Back to blog
+      </a>
+    </div>
+  </footer>
+</Layout>

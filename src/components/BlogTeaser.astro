@@ -1,0 +1,55 @@
+---
+// BlogTeaser.astro — shows the N most recent posts on the landing page
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf())
+  .slice(0, 3);
+
+const formatDate = (date: Date) =>
+  date.toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' });
+---
+
+{posts.length > 0 && (
+  <section id="blog" class="border-t border-[var(--color-border)]">
+    <div class="max-w-4xl mx-auto px-6 py-20">
+      <div class="flex items-baseline justify-between mb-8">
+        <h2 class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase">
+          Blog
+        </h2>
+        <a
+          href="/blog"
+          class="font-mono text-xs text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+        >
+          All posts &rarr;
+        </a>
+      </div>
+
+      <ol class="space-y-px">
+        {posts.map((post) => (
+          <li>
+            <a
+              href={`/blog/${post.id}`}
+              class="group flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 rounded-lg px-4 py-4 -mx-4 transition-colors hover:bg-[var(--color-surface)]"
+            >
+              <time
+                datetime={post.data.date.toISOString()}
+                class="shrink-0 font-mono text-xs text-[var(--color-muted)] w-28"
+              >
+                {formatDate(post.data.date)}
+              </time>
+              <div class="flex-1 min-w-0">
+                <span class="text-[var(--color-text)] font-medium group-hover:text-[var(--color-accent)] transition-colors">
+                  {post.data.title}
+                </span>
+                <p class="mt-0.5 text-sm text-[var(--color-muted)] line-clamp-1">
+                  {post.data.description}
+                </p>
+              </div>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </div>
+  </section>
+)}

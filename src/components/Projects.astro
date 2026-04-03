@@ -1,0 +1,122 @@
+---
+// Projects.astro — extensible project grid
+// To add a new project: duplicate a ProjectCard entry below.
+
+interface Project {
+  name: string;
+  tagline: string;
+  description: string;
+  tags: string[];
+  links: { label: string; href: string; primary?: boolean }[];
+  status: 'released' | 'wip' | 'archived';
+}
+
+const projects: Project[] = [
+  {
+    name: 'CommitCraft',
+    tagline: 'AI commit messages, entirely on-device.',
+    description:
+      'A VS Code extension that reads your staged diff and generates a conventional commit message using a local GGUF model. No API keys, no internet, no code ever leaves your machine. One-time purchase, no subscription.',
+    tags: ['VS Code', 'Local AI', 'Developer Tooling', 'TypeScript'],
+    links: [
+      {
+        label: 'Website',
+        href: 'https://commitcraft.cyferlawyn.org/',
+        primary: true,
+      },
+      {
+        label: 'GitHub',
+        href: 'https://github.com/cyferlawyn/commitcraft-vscode',
+      },
+      {
+        label: 'Marketplace',
+        href: 'https://marketplace.visualstudio.com/items?itemName=cyferlawyn.cyferlawyn-commitcraft',
+      },
+    ],
+    status: 'released',
+  },
+];
+---
+
+<section id="projects" class="border-t border-[var(--color-border)]">
+  <div class="max-w-4xl mx-auto px-6 py-20">
+    <h2 class="font-mono text-xs text-[var(--color-accent)] tracking-widest uppercase mb-8">
+      Projects
+    </h2>
+
+    <div class="space-y-6">
+      {projects.map((project) => (
+        <article
+          class="group relative rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-8 transition-all duration-200 hover:border-[var(--color-accent)]/40 hover:shadow-[0_0_32px_var(--color-accent-glow)]"
+        >
+          <!-- Status badge -->
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <h3 class="text-xl font-semibold text-[var(--color-text)] tracking-tight">
+                {project.name}
+              </h3>
+              <p class="text-[var(--color-accent)] text-sm mt-0.5 font-mono">
+                {project.tagline}
+              </p>
+            </div>
+            {project.status === 'released' && (
+              <span class="shrink-0 mt-0.5 inline-flex items-center gap-1.5 rounded-full border border-emerald-800/60 bg-emerald-950/50 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Released
+              </span>
+            )}
+            {project.status === 'wip' && (
+              <span class="shrink-0 mt-0.5 inline-flex items-center gap-1.5 rounded-full border border-amber-800/60 bg-amber-950/50 px-2.5 py-0.5 text-xs font-medium text-amber-400">
+                <span class="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                In progress
+              </span>
+            )}
+          </div>
+
+          <!-- Description -->
+          <p class="text-[var(--color-muted)] leading-relaxed text-sm mb-6">
+            {project.description}
+          </p>
+
+          <!-- Tags -->
+          <div class="flex flex-wrap gap-2 mb-6">
+            {project.tags.map((tag) => (
+              <span class="rounded border border-[var(--color-border)] px-2 py-0.5 font-mono text-xs text-[var(--color-muted)]">
+                {tag}
+              </span>
+            ))}
+          </div>
+
+          <!-- Links -->
+          <div class="flex flex-wrap gap-3">
+            {project.links.map((link) => (
+              link.primary ? (
+                <a
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 rounded-md bg-[var(--color-accent)] px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-accent-dim)]"
+                >
+                  {link.label}
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                    <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+                    <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+                  </svg>
+                </a>
+              ) : (
+                <a
+                  href={link.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-4 py-1.5 text-sm text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text)]"
+                >
+                  {link.label}
+                </a>
+              )
+            ))}
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</section>

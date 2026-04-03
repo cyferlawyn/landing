@@ -1,0 +1,38 @@
+---
+// Footer.astro
+const year = new Date().getFullYear();
+---
+
+<footer class="border-t border-[var(--color-border)] mt-auto">
+  <div class="max-w-4xl mx-auto px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <p class="font-mono text-xs text-[var(--color-muted)]">
+      &copy; {year} cyferlawyn
+    </p>
+    <nav>
+      <ul class="flex items-center gap-5 text-xs text-[var(--color-muted)]">
+        <li>
+          <a
+            href="/blog"
+            class="hover:text-[var(--color-text)] transition-colors duration-150"
+          >Blog</a>
+        </li>
+        <li>
+          <a
+            href="https://github.com/cyferlawyn"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-[var(--color-text)] transition-colors duration-150"
+          >GitHub</a>
+        </li>
+        <li>
+          <a
+            href="https://commitcraft.cyferlawyn.org/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="hover:text-[var(--color-text)] transition-colors duration-150"
+          >CommitCraft</a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</footer>
