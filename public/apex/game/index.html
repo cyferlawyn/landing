@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>APEX</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="gameCanvas"></canvas>
+
+    <aside id="shop-panel">
+      <div id="shop-header">
+        <div id="shop-title">Upgrades</div>
+        <div id="currency-display"><span>$</span><span id="currency-value">0</span></div>
+      </div>
+
+      <div id="upgrade-list">
+        <!-- populated by ui.js -->
+      </div>
+
+      <div id="shop-footer">
+        <div id="volume-control">
+          <label for="volume-slider">VOL</label>
+          <input type="range" id="volume-slider" min="0" max="100" value="40" />
+        </div>
+        <div id="quality-control">
+          <label>FX</label>
+          <div id="quality-buttons">
+            <button class="quality-btn active" data-q="high">HIGH</button>
+            <button class="quality-btn"        data-q="medium">MED</button>
+            <button class="quality-btn"        data-q="low">LOW</button>
+          </div>
+        </div>
+        <div id="auto-quality-control">
+          <button id="auto-quality-btn">AUTO</button>
+          <span id="auto-quality-label">automatically reduce FX if fps drops</span>
+        </div>
+        <button id="self-destruct-btn">SELF DESTRUCT</button>
+        <button id="new-game-btn">NEW GAME</button>
+      </div>
+    </aside>
+  </div>
+
+  <!-- Confirmation dialogue -->
+  <div id="confirm-overlay" class="hidden">
+    <div id="confirm-box">
+      <p>Erase all progress and start over?</p>
+      <div class="btn-row">
+        <button id="confirm-yes">ERASE</button>
+        <button id="confirm-no">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+  <script type="module" src="src/ui.js"></script>
+</body>
+</html>
