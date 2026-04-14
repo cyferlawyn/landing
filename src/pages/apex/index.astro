@@ -1,71 +1,57 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import Nav from '../../components/Nav.astro';
 ---
 
 <Layout
   title="APEX — cyferlawyn"
   description="A browser-based single-tower defense game. One tower. Endless waves. Countless upgrades."
 >
-  <Nav activeSection="projects" />
-
-  <main class="max-w-4xl mx-auto px-6 py-12">
-    <!-- Header -->
-    <div class="mb-8">
-      <div class="flex items-center gap-3 mb-2">
-        <h1 class="text-2xl font-semibold text-[var(--color-text)] tracking-tight">APEX</h1>
-        <span class="inline-flex items-center gap-1.5 rounded-full border border-emerald-800/60 bg-emerald-950/50 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
-          <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          Playable
-        </span>
-      </div>
-      <p class="text-[var(--color-accent)] font-mono text-sm mb-3">
-        One tower. Endless waves. Countless upgrades.
-      </p>
-      <p class="text-[var(--color-muted)] text-sm leading-relaxed max-w-2xl">
-        A browser-based single-tower defense game built with vanilla JS and the Canvas 2D API.
-        Survive endless waves of enemies, earn currency, and spend it on upgrades — from fire rate
-        and explosive rounds to orbital death rings and chain lightning. No install required;
-        progress is saved in your browser.
-      </p>
-
-      <div class="flex flex-wrap gap-2 mt-4">
-        {['Canvas 2D', 'Vanilla JS', 'Web Audio API', 'No dependencies'].map(tag => (
-          <span class="rounded border border-[var(--color-border)] px-2 py-0.5 font-mono text-xs text-[var(--color-muted)]">
-            {tag}
-          </span>
-        ))}
-      </div>
-
-      <div class="flex gap-3 mt-5">
-        <a
-          href="https://github.com/cyferlawyn/APEX"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] px-4 py-1.5 text-sm text-[var(--color-muted)] transition-colors hover:border-[var(--color-accent)]/50 hover:text-[var(--color-text)]"
-        >
-          GitHub
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
-            <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
-            <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
-          </svg>
-        </a>
-      </div>
+  <!-- Compact top bar -->
+  <header class="flex items-center justify-between px-4 py-2 border-b border-[var(--color-border)] bg-[var(--color-bg)] shrink-0">
+    <div class="flex items-center gap-3">
+      <a
+        href="/"
+        class="font-mono text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors"
+      >cyferlawyn</a>
+      <span class="text-[var(--color-border)]">/</span>
+      <span class="font-mono text-sm font-medium text-[var(--color-text)]">APEX</span>
+      <span class="inline-flex items-center gap-1 rounded-full border border-emerald-800/60 bg-emerald-950/50 px-2 py-0.5 text-xs font-medium text-emerald-400">
+        <span class="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+        Playable
+      </span>
     </div>
-
-    <!-- Game embed -->
-    <div class="rounded-lg border border-[var(--color-border)] overflow-hidden">
-      <iframe
-        src="/apex/game/"
-        title="APEX tower defense game"
-        class="w-full"
-        style="height: min(600px, 70vh); display: block; border: none;"
-        allow="autoplay"
-      ></iframe>
+    <div class="flex items-center gap-4 text-sm">
+      <span class="hidden sm:block text-[var(--color-muted)] font-mono text-xs">One tower. Endless waves.</span>
+      <a
+        href="https://github.com/cyferlawyn/APEX"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-1.5 text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors text-sm"
+      >
+        GitHub
+        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+          <path fill-rule="evenodd" d="M8.636 3.5a.5.5 0 0 0-.5-.5H1.5A1.5 1.5 0 0 0 0 4.5v10A1.5 1.5 0 0 0 1.5 16h10a1.5 1.5 0 0 0 1.5-1.5V7.864a.5.5 0 0 0-1 0V14.5a.5.5 0 0 1-.5.5h-10a.5.5 0 0 1-.5-.5v-10a.5.5 0 0 1 .5-.5h6.636a.5.5 0 0 0 .5-.5z"/>
+          <path fill-rule="evenodd" d="M16 .5a.5.5 0 0 0-.5-.5h-5a.5.5 0 0 0 0 1h3.793L6.146 9.146a.5.5 0 1 0 .708.708L15 1.707V5.5a.5.5 0 0 0 1 0v-5z"/>
+        </svg>
+      </a>
     </div>
+  </header>
 
-    <p class="mt-3 text-xs text-[var(--color-muted)] font-mono">
-      Click inside the game to activate audio. Progress is saved automatically in your browser.
-    </p>
-  </main>
+  <!-- Game fills all remaining viewport height -->
+  <iframe
+    src="/apex/game/"
+    title="APEX tower defense game"
+    style="flex: 1 1 auto; width: 100%; display: block; border: none;"
+    allow="autoplay"
+  ></iframe>
 </Layout>
+
+<style>
+  /* Override Layout's body so the page is a flex column filling the full viewport */
+  :global(body) {
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+</style>
