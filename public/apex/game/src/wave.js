@@ -4,7 +4,7 @@ import { audio }     from './audio.js';
 export class WaveSpawner {
   constructor(game) {
     this.game      = game;
-    this.queue     = [];  // [{type, delay}] remaining to spawn
+    this.queue     = [];
     this.elapsed   = 0;
     this.done      = true;
   }
@@ -32,11 +32,9 @@ export class WaveSpawner {
     const w = bounds.w;
     const h = bounds.h;
 
-    // Use supplied edge for clusters, random otherwise
     const e = edge ?? Math.floor(Math.random() * 4);
     let x, y;
     const margin = 40;
-    // Swarm units get a small positional jitter so they don't stack perfectly
     const jitter = type === EnemyType.SWARM ? 20 : 0;
     switch (e) {
       case 0: x = Math.random() * w;         y = -margin + (Math.random() - 0.5) * jitter; break;
@@ -59,22 +57,34 @@ function buildWave(wave) {
   // Boss wave
   if (wave % 10 === 0) {
     entries.push({ type: EnemyType.BOSS, delay: 0, edge: null });
+
+    // Colossus escort — ramps up every 20 waves from wave 20
+    const colossusCount = wave >= 20 ? Math.min(Math.floor((wave - 10) / 20) + 1, 5) : 0;
+    for (let i = 0; i < colossusCount; i++) {
+      entries.push({ type: EnemyType.COLOSSUS, delay: 1.5 + i * 1.5, edge: null });
+    }
+
+    // Brute wave-crashers — added from wave 50, grow every 25 waves
+    const bruteCount = wave >= 50 ? Math.min(Math.floor((wave - 50) / 25) * 2 + 4, 12) : 0;
+    for (let i = 0; i < bruteCount; i++) {
+      entries.push({ type: EnemyType.BRUTE, delay: 0.5 + i * 0.4, edge: null });
+    }
+
     return entries;
   }
 
   const count    = Math.min(Math.floor(3 + wave * 0.8 + Math.pow(wave, 1.5) * 0.15), 200);
-  const interval = 0.4; // seconds between normal spawns
+  const interval = 0.2;
 
-  let t = 0; // running delay cursor
+  let t = 0;
   for (let i = 0; i < count; i++) {
     // 15% chance per slot (wave 11+) to replace with a swarm cluster
     if (wave >= 11 && Math.random() < 0.15) {
-      const clusterSize = 10 + Math.floor(Math.random() * 11); // 10–20
-      const edge        = Math.floor(Math.random() * 4);        // shared edge
+      const clusterSize = 10 + Math.floor(Math.random() * 11);
+      const edge        = Math.floor(Math.random() * 4);
       for (let s = 0; s < clusterSize; s++) {
-        entries.push({ type: EnemyType.SWARM, delay: t + s * 0.06, edge });
+        entries.push({ type: EnemyType.SWARM, delay: t + s * 0.03, edge });
       }
-      // Advance time by one normal interval so the cluster doesn't overlap the next spawn
       t += interval;
     } else {
       entries.push({ type: pickType(wave), delay: t, edge: null });
@@ -86,11 +96,17 @@ function buildWave(wave) {
 }
 
 function pickType(wave) {
-  // Weighted pool based on wave — no swarm here, handled above
   const pool = [EnemyType.DRONE];
+
+  if (wave >= 4)  pool.push(EnemyType.DASHER, EnemyType.DASHER);
   if (wave >= 5)  pool.push(EnemyType.ELITE, EnemyType.ELITE);
+  if (wave >= 7)  pool.push(EnemyType.BOMBER);
   if (wave >= 8)  pool.push(EnemyType.BRUTE);
   if (wave >= 12) pool.push(EnemyType.ELITE, EnemyType.BRUTE);
+  if (wave >= 14) pool.push(EnemyType.PHANTOM, EnemyType.PHANTOM);
+  if (wave >= 18) pool.push(EnemyType.SPAWNER);
+  if (wave >= 20) pool.push(EnemyType.COLOSSUS);
+  if (wave >= 25) pool.push(EnemyType.SPAWNER, EnemyType.COLOSSUS);
 
   return pool[Math.floor(Math.random() * pool.length)];
 }

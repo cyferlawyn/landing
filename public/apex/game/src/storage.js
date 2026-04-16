@@ -1,5 +1,7 @@
-const SAVE_KEY  = 'apex_save';
-const PREFS_KEY = 'apex_prefs';
+const SAVE_KEY     = 'apex_save';
+const PREFS_KEY    = 'apex_prefs';
+const PRESTIGE_KEY = 'apex_prestige';
+const TRAITOR_KEY  = 'apex_traitors';
 
 export function save(state) {
   try {
@@ -42,4 +44,46 @@ export function loadPrefs() {
   } catch (e) {
     return null;
   }
+}
+
+export function savePrestige(state) {
+  try {
+    localStorage.setItem(PRESTIGE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('Prestige save failed:', e);
+  }
+}
+
+export function loadPrestige() {
+  try {
+    const raw = localStorage.getItem(PRESTIGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function clearPrestige() {
+  localStorage.removeItem(PRESTIGE_KEY);
+}
+
+export function saveTraitors(state) {
+  try {
+    localStorage.setItem(TRAITOR_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('Traitor save failed:', e);
+  }
+}
+
+export function loadTraitors() {
+  try {
+    const raw = localStorage.getItem(TRAITOR_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function clearTraitors() {
+  localStorage.removeItem(TRAITOR_KEY);
 }

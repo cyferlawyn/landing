@@ -11,39 +11,82 @@
     <canvas id="gameCanvas"></canvas>
 
     <aside id="shop-panel">
-      <div id="shop-header">
-        <div id="shop-title">Upgrades</div>
-        <div id="currency-display"><span>$</span><span id="currency-value">0</span></div>
-      </div>
 
-      <div id="upgrade-list">
-        <!-- populated by ui.js -->
-      </div>
-
-      <div id="shop-footer">
-        <div id="volume-control">
-          <label for="volume-slider">VOL</label>
-          <input type="range" id="volume-slider" min="0" max="100" value="40" />
-        </div>
-        <div id="quality-control">
-          <label>FX</label>
-          <div id="quality-buttons">
-            <button class="quality-btn active" data-q="high">HIGH</button>
-            <button class="quality-btn"        data-q="medium">MED</button>
-            <button class="quality-btn"        data-q="low">LOW</button>
+      <!-- ── Upgrades tab ─────────────────────────────── -->
+      <div class="tab" id="tab-upgrades">
+        <button class="tab-header" data-tab="upgrades">
+          <span class="tab-title">Upgrades</span>
+          <span id="currency-display">$ <span id="currency-value">0</span></span>
+          <span class="tab-chevron">&#9650;</span>
+        </button>
+        <div class="tab-body">
+          <div id="upgrade-list">
+            <!-- populated by ui.js -->
           </div>
         </div>
-        <div id="auto-quality-control">
-          <button id="auto-quality-btn">AUTO</button>
-          <span id="auto-quality-label">automatically reduce FX if fps drops</span>
-        </div>
-        <button id="self-destruct-btn">SELF DESTRUCT</button>
-        <button id="new-game-btn">NEW GAME</button>
       </div>
+
+      <!-- ── Ascension tab — hidden until first ascension ── -->
+      <div class="tab hidden" id="tab-prestige">
+        <button class="tab-header tab-header--gold" data-tab="prestige">
+          <span class="tab-title">Ascension</span>
+          <span id="prestige-shard-display">&#9670; <span id="prestige-shard-value">0</span></span>
+          <span class="tab-chevron">&#9650;</span>
+        </button>
+        <div class="tab-body">
+          <div id="prestige-passive-line"></div>
+          <div id="prestige-upgrade-list">
+            <!-- populated by ui.js -->
+          </div>
+          <button id="ascend-btn" class="hidden">ASCEND</button>
+        </div>
+      </div>
+
+      <!-- ── Traitors tab — hidden until first pet captured ── -->
+      <div class="tab hidden" id="tab-traitors">
+        <button class="tab-header tab-header--green" data-tab="traitors">
+          <span class="tab-title">Traitors</span>
+          <span id="traitor-bonus-display">&#9733; <span id="traitor-bonus-value">+0%</span></span>
+          <span class="tab-chevron">&#9650;</span>
+        </button>
+        <div class="tab-body">
+          <div id="traitor-passive-line"></div>
+          <div id="traitor-slots"></div>
+          <div id="traitor-roster"></div>
+        </div>
+      </div>
+
+      <!-- ── Settings tab ─────────────────────────────── -->
+      <div class="tab" id="tab-settings">
+        <button class="tab-header tab-header--dim" data-tab="settings">
+          <span class="tab-title">Settings</span>
+          <span class="tab-chevron">&#9660;</span>
+        </button>
+        <div class="tab-body tab-body--collapsed">
+          <div id="volume-control">
+            <label for="volume-slider">VOL</label>
+            <input type="range" id="volume-slider" min="0" max="100" value="40" />
+          </div>
+          <div id="quality-control">
+            <label>FX</label>
+            <div id="quality-buttons">
+              <button class="quality-btn active" data-q="high">HIGH</button>
+              <button class="quality-btn"        data-q="medium">MED</button>
+              <button class="quality-btn"        data-q="low">LOW</button>
+            </div>
+          </div>
+          <div id="auto-quality-control">
+            <button id="auto-quality-btn">AUTO</button>
+            <span id="auto-quality-label">automatically reduce FX if fps drops</span>
+          </div>
+          <button id="new-game-btn">HARD RESET</button>
+        </div>
+      </div>
+
     </aside>
   </div>
 
-  <!-- Confirmation dialogue -->
+  <!-- Hard Reset confirmation -->
   <div id="confirm-overlay" class="hidden">
     <div id="confirm-box">
       <p>Erase all progress and start over?</p>
@@ -54,7 +97,22 @@
     </div>
   </div>
 
+  <!-- Ascend confirmation -->
+  <div id="ascend-overlay" class="hidden">
+    <div id="ascend-box">
+      <p id="ascend-confirm-text">Ascend and reset this run?</p>
+      <p id="ascend-confirm-sub"></p>
+      <div class="btn-row">
+        <button id="ascend-yes">ASCEND</button>
+        <button id="ascend-no">CANCEL</button>
+      </div>
+    </div>
+  </div>
+
   <script type="module" src="src/main.js"></script>
   <script type="module" src="src/ui.js"></script>
+
+  <!-- Traitor capture toast -->
+  <div id="traitor-toast" class="hidden"></div>
 </body>
 </html>

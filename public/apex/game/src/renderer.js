@@ -26,9 +26,6 @@ export class Renderer {
   }
 
   _resize() {
-    // Use a fixed logical resolution capped at 1600×900.
-    // canvas.offsetWidth reflects CSS layout size which balloons at low browser
-    // zoom levels — capping prevents off-screen spawns from being unreachably far.
     const W = Math.min(Math.max(this.canvas.offsetWidth,  400), 1600);
     const H = Math.min(Math.max(this.canvas.offsetHeight, 300),  900);
     this.canvas.width  = W;
@@ -97,10 +94,6 @@ export class Renderer {
 
     const cx = t.x, cy = t.y, r = t.radius;
 
-    // Determine outline color:
-    // - red flash on hit
-    // - magenta tint while laser is charging (cooldown < 1.5s)
-    // - default cyan
     let glowColor = COLORS.towerGlow;
     if (t.hitFlash > 0) {
       glowColor = '#ff1744';
@@ -119,7 +112,6 @@ export class Renderer {
         ? [{ angle: t.ringAngle, ccw: false }, { angle: t.ringAngle2, ccw: true }]
         : [{ angle: t.ringAngle, ccw: false }];
 
-      // Scale visuals with tier
       const coreWidth  = 2 + t.ringTier * 1.2;
       const glowWidth  = coreWidth * 3;
       const bloomWidth = coreWidth * 7;
@@ -128,12 +120,10 @@ export class Renderer {
       for (const ring of rings) {
         const startA = ring.angle - arcRad / 2;
         const endA   = ring.angle + arcRad / 2;
-        // Leading edge: endA for cw ring, startA for ccw ring
         const leadA  = ring.ccw ? startA : endA;
 
         ctx.save();
 
-        // Pass 1 — wide soft bloom
         ctx.globalAlpha = 0.15;
         ctx.strokeStyle = '#ff6d00';
         ctx.shadowBlur  = 0;
@@ -143,7 +133,6 @@ export class Renderer {
         ctx.arc(cx, cy, orbitR, startA, endA);
         ctx.stroke();
 
-        // Pass 2 — colored glow
         ctx.globalAlpha = 0.85;
         ctx.strokeStyle = '#ff6d00';
         ctx.shadowBlur  = glowBlur;
@@ -153,7 +142,6 @@ export class Renderer {
         ctx.arc(cx, cy, orbitR, startA, endA);
         ctx.stroke();
 
-        // Pass 3 — white hot core
         ctx.globalAlpha = 1;
         ctx.strokeStyle = '#ffffff';
         ctx.shadowBlur  = 8;
@@ -163,7 +151,6 @@ export class Renderer {
         ctx.arc(cx, cy, orbitR, startA, endA);
         ctx.stroke();
 
-        // Bright leading-edge dot — punchy focal point
         const tipX = cx + Math.cos(leadA) * orbitR;
         const tipY = cy + Math.sin(leadA) * orbitR;
         ctx.globalAlpha = 1;
@@ -174,7 +161,6 @@ export class Renderer {
         ctx.arc(tipX, tipY, coreWidth * 1.8, 0, Math.PI * 2);
         ctx.fill();
 
-        // Emit a trailing spark from the tip each frame (high quality only)
         if (game.quality === 'high' && game.particles && Math.random() < 0.4) {
           game.particles._emit(
             tipX, tipY,
@@ -189,6 +175,7 @@ export class Renderer {
         ctx.restore();
       }
     }
+
     // Tower hex
     ctx.save();
     ctx.shadowBlur  = t.hitFlash > 0 ? 32 : 24;
@@ -202,10 +189,9 @@ export class Renderer {
     ctx.stroke();
     ctx.restore();
 
-    // Core dot — pulses when laser active, breathes otherwise
     const pulse = t.laserActive
       ? r * 0.25 + Math.sin(Date.now() / 60) * r * 0.08
-      : r * 0.18 + Math.sin(Date.now() / 600) * r * 0.06; // gentle idle breath
+      : r * 0.18 + Math.sin(Date.now() / 600) * r * 0.06;
     ctx.save();
     ctx.shadowBlur  = t.laserActive ? 20 : 10;
     ctx.shadowColor = glowColor;
@@ -215,6 +201,37 @@ export class Renderer {
     ctx.arc(cx, cy, pulse, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
+
+    // Shield / invuln visuals
+    if (t.invulnTimer > 0) {
+      const invR   = r + 10;
+      const alpha  = 0.5 + Math.sin(Date.now() / 80) * 0.35;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+      ctx.strokeStyle = '#ffd600';
+      ctx.shadowBlur  = 18;
+      ctx.shadowColor = '#ffd600';
+      ctx.lineWidth   = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, invR, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    } else if ((t.shieldCharges ?? 0) > 0) {
+      const pipR = r + 8;
+      ctx.save();
+      for (let i = 0; i < t.shieldCharges; i++) {
+        const angle = (Math.PI * 2 / t.shieldChargesMax) * i - Math.PI / 2;
+        const px = cx + pipR * Math.cos(angle);
+        const py = cy + pipR * Math.sin(angle);
+        ctx.beginPath();
+        ctx.arc(px, py, 3, 0, Math.PI * 2);
+        ctx.fillStyle   = '#ffd600';
+        ctx.shadowBlur  = 8;
+        ctx.shadowColor = '#ffd600';
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   _hexPath(cx, cy, r) {
@@ -240,7 +257,6 @@ export class Renderer {
     const ex = cx + Math.cos(a) * t.laserRange;
     const ey = cy + Math.sin(a) * t.laserRange;
 
-    // Flicker — slight random width variation each frame for electricity feel
     const flicker      = 0.85 + Math.random() * 0.3;
     const outerWidth   = (2 + t.laserTier * 1.5) * flicker;
     const innerWidth   = (1 + t.laserTier * 0.5) * flicker;
@@ -249,7 +265,6 @@ export class Renderer {
 
     ctx.save();
 
-    // Pass 1 — wide soft bloom
     ctx.globalAlpha = 0.18;
     ctx.strokeStyle = COLORS.laser;
     ctx.shadowBlur  = 0;
@@ -260,7 +275,6 @@ export class Renderer {
     ctx.lineTo(ex, ey);
     ctx.stroke();
 
-    // Pass 2 — colored outer beam
     ctx.globalAlpha = 0.85;
     ctx.strokeStyle = COLORS.laser;
     ctx.shadowBlur  = glowStrength;
@@ -271,7 +285,6 @@ export class Renderer {
     ctx.lineTo(ex, ey);
     ctx.stroke();
 
-    // Pass 3 — white hot core
     ctx.globalAlpha = 1;
     ctx.strokeStyle = '#ffffff';
     ctx.shadowBlur  = 6;
@@ -282,7 +295,6 @@ export class Renderer {
     ctx.lineTo(ex, ey);
     ctx.stroke();
 
-    // Glowing impact dot at beam tip
     const tipR = (3 + t.laserTier * 1.5) * flicker;
     ctx.globalAlpha = 0.9;
     ctx.fillStyle   = '#ffffff';
@@ -320,7 +332,7 @@ export class Renderer {
     });
   }
 
-  // ── screen-edge flash (boss arrival / boss death) ─────────────────────────────
+  // ── screen-edge flash ─────────────────────────────────────────────────────────
 
   _drawEdgeFlash() {
     const { ctx, canvas, game } = this;
@@ -350,10 +362,9 @@ export class Renderer {
       ex.t -= 1 / 60;
       if (ex.t <= 0) return false;
 
-      const life     = ex.t / 0.45;          // 1→0 over lifetime
-      const progress = 1 - life;             // 0→1
+      const life     = Math.min(1, ex.t / ex.life);
+      const progress = Math.max(0, 1 - life);
 
-      // ── center flash — bright filled circle that fades fast
       const flashR = ex.r * 0.55 * Math.pow(1 - Math.min(progress / 0.25, 1), 0.5);
       if (flashR > 0) {
         ctx.save();
@@ -367,7 +378,6 @@ export class Renderer {
         ctx.restore();
       }
 
-      // ── inner ring — expands to ~60% of splash radius, fades quickly
       const innerProgress = Math.min(progress / 0.5, 1);
       ctx.save();
       ctx.globalAlpha = (1 - innerProgress) * 0.9;
@@ -380,7 +390,6 @@ export class Renderer {
       ctx.stroke();
       ctx.restore();
 
-      // ── outer ring — expands to full splash radius, lingers longer
       ctx.save();
       ctx.globalAlpha = life * 0.85;
       ctx.strokeStyle = COLORS.explosion;
@@ -390,7 +399,6 @@ export class Renderer {
       ctx.beginPath();
       ctx.arc(ex.x, ex.y, ex.r * progress, 0, Math.PI * 2);
       ctx.stroke();
-      // Faint wide bloom behind outer ring
       ctx.globalAlpha = life * 0.25;
       ctx.lineWidth   = 8;
       ctx.beginPath();
@@ -432,7 +440,6 @@ export class Renderer {
       }
       pts.push({ x: arc.x2, y: arc.y2 });
 
-      // Pass 1 — wide outer glow (skipped on medium)
       if (!noGlow) {
         ctx.save();
         ctx.globalAlpha = alpha * 0.4;
@@ -449,7 +456,6 @@ export class Renderer {
       }
 
       ctx.save();
-      // Pass 2 — colored mid stroke
       ctx.globalAlpha = alpha * 0.9;
       ctx.strokeStyle = COLORS.chain;
       ctx.shadowBlur  = noGlow ? 0 : 10;
@@ -460,7 +466,6 @@ export class Renderer {
       for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
       ctx.stroke();
 
-      // Pass 3 — bright white core
       ctx.globalAlpha = alpha;
       ctx.strokeStyle = '#ffffff';
       ctx.shadowBlur  = 0;
@@ -481,12 +486,9 @@ export class Renderer {
     const { ctx, canvas, game } = this;
     if (!game.enemyPool) return;
 
-    // --- Batched draw: group by shape+color, one path per group ---
-    // Bucket: key = shape+color → { color, shape, arr: [enemy, ...] }
     const buckets = new Map();
     for (const e of game.enemyPool.pool) {
       if (!e.active) continue;
-      // Off-screen cull — skip enemies more than 50px outside canvas
       if (e.x < -50 || e.x > canvas.width + 50 ||
           e.y < -50 || e.y > canvas.height + 50) continue;
       const key    = e.shape + e.color;
@@ -511,13 +513,18 @@ export class Renderer {
       ctx.restore();
     }
 
-    // HP bars drawn separately (no batching benefit, very cheap)
     for (const e of game.enemyPool.pool) {
       if (e.active) this._drawHpBar(e);
     }
+
+    for (const e of game.enemyPool.pool) {
+      if (!e.active) continue;
+      if (e.intangible) this._drawPhantomGhost(e);
+      if (e.type === 'BOMBER') this._drawBomberWarning(e);
+      if (e.type === 'COLOSSUS') this._drawColossusArmor(e);
+    }
   }
 
-  // Append a single enemy's shape sub-path to the current path (no fill/stroke)
   _appendEnemyPath(e, shape) {
     switch (shape) {
       case 'circle': {
@@ -555,6 +562,85 @@ export class Renderer {
     }
   }
 
+  _drawPhantomGhost(e) {
+    const ctx   = this.ctx;
+    const pulse = 0.35 + Math.sin(Date.now() / 80) * 0.2;
+    ctx.save();
+    ctx.globalAlpha = pulse;
+    ctx.strokeStyle = '#b388ff';
+    ctx.shadowBlur  = 12;
+    ctx.shadowColor = '#b388ff';
+    ctx.lineWidth   = 2;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.radius + 5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  _drawBomberWarning(e) {
+    const ctx  = this.ctx;
+    const BLAST_R = 80;
+    const tx   = this.game.tower.x;
+    const ty   = this.game.tower.y;
+    const dx   = tx - e.x, dy = ty - e.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const proximity = Math.max(0, 1 - dist / 300);
+    const pulse = 0.5 + Math.sin(Date.now() / (120 - proximity * 80)) * 0.35;
+
+    ctx.save();
+
+    const auraAlpha = Math.max(0, Math.min(1, 0.04 + proximity * 0.08 + Math.sin(Date.now() / 200) * 0.02));
+    ctx.globalAlpha = auraAlpha;
+    ctx.fillStyle   = '#ff6d00';
+    ctx.shadowBlur  = 0;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, BLAST_R, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.18 + proximity * 0.22;
+    ctx.strokeStyle = '#ff6d00';
+    ctx.shadowBlur  = 10 + proximity * 10;
+    ctx.shadowColor = '#ff6d00';
+    ctx.lineWidth   = 1;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, BLAST_R, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = Math.max(0, Math.min(1, pulse * (0.4 + proximity * 0.6)));
+    ctx.strokeStyle = '#ff6d00';
+    ctx.shadowBlur  = 8 + proximity * 14;
+    ctx.shadowColor = '#ff6d00';
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, e.radius + 4 + Math.sin(Date.now() / 100) * 3, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+  }
+
+  _drawColossusArmor(e) {
+    const ctx  = this.ctx;
+    const sources = [
+      { flag: e.armorProjectile, color: '#00e5ff' },
+      { flag: e.armorRing,       color: '#ff6d00' },
+      { flag: e.armorLaser,      color: '#ff4081' },
+    ];
+    ctx.save();
+    const total = sources.length;
+    for (let i = 0; i < total; i++) {
+      const angle = (Math.PI * 2 / total) * i - Math.PI / 2;
+      const px = e.x + Math.cos(angle) * (e.radius + 7);
+      const py = e.y + Math.sin(angle) * (e.radius + 7);
+      ctx.beginPath();
+      ctx.arc(px, py, 3, 0, Math.PI * 2);
+      ctx.fillStyle   = sources[i].flag ? 'rgba(255,255,255,0.1)' : sources[i].color;
+      ctx.shadowBlur  = sources[i].flag ? 0 : 6;
+      ctx.shadowColor = sources[i].color;
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
   _drawHpBar(e) {
     const ctx  = this.ctx;
     const w    = e.radius * 2.5;
@@ -579,11 +665,9 @@ export class Renderer {
 
     for (const p of game.projectilePool.pool) {
       if (!p.active) continue;
-      // Off-screen cull
       if (p.x < -20 || p.x > canvas.width + 20 ||
           p.y < -20 || p.y > canvas.height + 20) continue;
 
-      // Particle trail — emitted into the particle system each frame (high only)
       if (quality === 'high' && game.particles) {
         const speed = Math.sqrt(p.vx * p.vx + p.vy * p.vy);
         if (speed > 0) {
@@ -592,7 +676,6 @@ export class Renderer {
       }
 
       if (quality === 'low') {
-        // LOW — plain dot, no glow
         ctx.save();
         ctx.fillStyle = '#ffffff';
         ctx.beginPath();
@@ -600,8 +683,6 @@ export class Renderer {
         ctx.fill();
         ctx.restore();
       } else {
-        // MEDIUM / HIGH — two-pass glowing bullet: halo + bright core
-        // Pass 1: soft cyan halo (no shadowBlur — cheap)
         ctx.save();
         ctx.globalAlpha = 0.35;
         ctx.fillStyle   = '#00e5ff';
@@ -610,7 +691,6 @@ export class Renderer {
         ctx.fill();
         ctx.restore();
 
-        // Pass 2: white-hot core with a single cheap shadowBlur
         ctx.save();
         ctx.shadowBlur  = 10;
         ctx.shadowColor = '#00e5ff';
@@ -635,13 +715,11 @@ export class Renderer {
     ctx.fillStyle = COLORS.text;
     ctx.fillText(`Wave ${game.wave}`, 12, 22);
 
-    // Enemy count remaining
     const remaining = game.enemyPool ? game.enemyPool.activeCount() : 0;
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.font      = '11px monospace';
     ctx.fillText(`enemies: ${remaining}`, 12, 38);
 
-    // HP bar
     const barW  = 200;
     const barH  = 12;
     const barX  = canvas.width / 2 - barW / 2;
@@ -661,7 +739,6 @@ export class Renderer {
     ctx.font        = '11px monospace';
     ctx.fillText(`${Math.ceil(t.hp)} / ${t.maxHp}`, canvas.width / 2, barY - 3);
 
-    // Laser cooldown indicator
     if (t.laserUnlocked && !t.laserActive) {
       const BURST_COOLDOWN = Math.max(4, 8 - t.laserTier);
       const pct = Math.max(0, 1 - t.laserCooldown / BURST_COOLDOWN);
@@ -678,21 +755,6 @@ export class Renderer {
       ctx.fillText('LASER', canvas.width / 2, indY + indH + 8);
     }
 
-    // Currency
-    ctx.textAlign   = 'right';
-    ctx.fillStyle   = COLORS.currency;
-    ctx.font        = '13px monospace';
-    ctx.fillText(`$ ${game.currency}`, canvas.width - 12, 22);
-
-    // Earn rate — show +N/min when there's recent data
-    if (game.recentEarned > 0) {
-      const perMin = Math.round(game.recentEarned);  // window IS 60s, so sum == per-min
-      ctx.fillStyle = 'rgba(255,214,0,0.45)';
-      ctx.font      = '10px monospace';
-      ctx.fillText(`+${perMin}/min`, canvas.width - 12, 35);
-    }
-
-    // FPS counter — colour shifts red when below 55
     const fps      = game.fps ?? 60;
     const fpsColor = fps < 45 ? '#ff1744' : fps < 55 ? '#ffea00' : 'rgba(255,255,255,0.28)';
     ctx.textAlign  = 'right';
@@ -701,15 +763,14 @@ export class Renderer {
     const fpsLabel = game.autoQuality
       ? `${fps} fps  AUTO:${game.quality.toUpperCase()}`
       : `${fps} fps`;
-    ctx.fillText(fpsLabel, canvas.width - 12, 47);
+    ctx.fillText(fpsLabel, canvas.width - 12, 22);
 
-    // Currency popups — +$N floaters above the killed enemy that drift up and fade
     const DT = 1 / 60;
     game.currencyPopups = game.currencyPopups.filter(p => {
       p.t -= DT;
       if (p.t <= 0) return false;
-      p.y -= 40 * DT; // drift upward
-      const alpha = Math.min(1, p.t / 0.3); // fade out over last 0.3s
+      p.y -= 40 * DT;
+      const alpha = Math.min(1, p.t / 0.3);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle   = COLORS.currency;
@@ -726,14 +787,12 @@ export class Renderer {
   // ── state overlays ────────────────────────────────────────────────────────────
 
   _drawStateOverlay() {
-    // Results overlay: timer-driven, fades out over last 0.5s, combat runs beneath
     if (this.game.resultsTimer > 0) this._drawResults();
     if (this.game.state === State.DEFEATED) this._drawDefeated();
   }
 
   _drawResults() {
     const { ctx, canvas, game } = this;
-    // Fade out during the last 0.5s of the timer
     const alpha = Math.min(1, game.resultsTimer / 0.5);
 
     ctx.save();
@@ -783,6 +842,7 @@ export class Renderer {
 
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
     ctx.font      = '12px monospace';
-    ctx.fillText('upgrades kept — restarting from wave 1...', canvas.width / 2, canvas.height / 2 + 68);
+    const restartWave = Math.max(1, Math.floor((game.wave - 1) / 10) * 10 + 1);
+    ctx.fillText(`upgrades kept — restarting from wave ${restartWave}...`, canvas.width / 2, canvas.height / 2 + 68);
   }
 }

@@ -45,6 +45,22 @@ export class Game {
     // _earnLog entries: { amount, age } where age counts up; purged when age > 60s.
     this._earnLog    = [];
     this.recentEarned = 0;     // sum of _earnLog amounts (kept in sync)
+
+    // ── Prestige (Ascension) ────────────────────────────────────────────────
+    // pendingShards: earned this run from wave-50+ boss kills; locked until Ascension
+    // shards: spendable balance (spent shards are deducted from this)
+    // totalShardsEarned: monotonically increasing — never decremented; drives passive dmg bonus
+    // prestigeUpgrades: purchased prestige tiers, persist across Ascensions
+    // ascensionCount: number of times player has ascended (cosmetic / future use)
+    this.pendingShards      = 0;
+    this.shards             = 0;
+    this.totalShardsEarned  = 0;
+    this.prestigeUpgrades   = {};
+    this.ascensionCount     = 0;
+
+    // ── Traitor (pet) system ────────────────────────────────────────────────
+    this.traitorSystem              = null; // set in main.js bootstrap
+    this.pendingTraitorAnnouncements = [];  // [{ type, rarity }] drained by ui.js
   }
 
   transition(newState) {
@@ -72,5 +88,28 @@ export class Game {
   logEarned(amount) {
     this._earnLog.push({ amount, age: 0 });
     this.recentEarned += amount;
+  }
+
+  // Award pending shards for killing a boss on wave >= 50.
+  // Formula: floor(1 + (wave-50)/10) × milestone multiplier
+  // Milestone ×3 at x00 waves, ×10 at x000 waves.
+  awardShards(wave) {
+    if (wave < 50) return;
+    const base = Math.floor(1 + (wave - 50) / 10);
+    const mult = wave % 1000 === 0 ? 10
+               : wave % 100  === 0 ? 3
+               : 1;
+    this.pendingShards += base * mult;
+    // totalShardsEarned is incremented in ascend() when pending shards are claimed
+  }
+
+  // Passive damage multiplier from total shards ever earned (spent shards still count).
+  shardDmgMult() {
+    return 1 + this.totalShardsEarned * 0.10;
+  }
+
+  // Multiplicative damage bonus from active traitor pets (additive per-pet, then ×1+sum).
+  traitorDmgMult() {
+    return 1 + (this.traitorSystem?.damageBonus() ?? 0);
   }
 }

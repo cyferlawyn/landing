@@ -1,14 +1,12 @@
 import { audio } from './audio.js';
+import { EnemyType, _bomberDetonate } from './enemy.js';
 
 // ── Spatial grid ─────────────────────────────────────────────────────────────
-// Divides the canvas into fixed-size cells. Enemies register themselves each
-// frame; projectiles query only the cells they overlap, cutting collision work
-// from O(projectiles × enemies) to roughly O(projectiles × local_density).
 
 class SpatialGrid {
   constructor(cellSize) {
     this.cellSize = cellSize;
-    this.cells    = new Map(); // key = "cx,cy" → Enemy[]
+    this.cells    = new Map();
   }
 
   _key(cx, cy) { return (cx << 16) | (cy & 0xffff); }
@@ -25,7 +23,6 @@ class SpatialGrid {
     arr.push(e);
   }
 
-  // Return all enemies in cells overlapping the circle (x,y,r)
   query(x, y, r) {
     const cs      = this.cellSize;
     const minCx   = Math.floor((x - r) / cs);
@@ -43,32 +40,33 @@ class SpatialGrid {
   }
 }
 
-// Module-level grid; rebuilt every update call from the current enemy pool.
 const _grid = new SpatialGrid(64);
 
 export class Projectile {
   constructor() {
-    this.active          = false;
-    this.x               = 0;
-    this.y               = 0;
-    this.vx              = 0;
-    this.vy              = 0;
-    this.damage          = 0;
-    this.explosiveRadius = 0;   // 0 = no splash
-    this.chainJumps      = 0;   // 0 = no chain
-    this.chainDamage     = 0;   // damage for chain (set on fire)
+    this.active           = false;
+    this.x                = 0;
+    this.y                = 0;
+    this.vx               = 0;
+    this.vy               = 0;
+    this.damage           = 0;
+    this.explosiveRadius  = 0;
+    this.chainJumps       = 0;
+    this.chainDamage      = 0;
+    this.executeThreshold = 0;
   }
 
-  init(x, y, vx, vy, damage, explosiveRadius = 0, chainJumps = 0) {
-    this.active          = true;
-    this.x               = x;
-    this.y               = y;
-    this.vx              = vx;
-    this.vy              = vy;
-    this.damage          = damage;
-    this.explosiveRadius = explosiveRadius;
-    this.chainJumps      = chainJumps;
-    this.chainDamage     = damage * 0.6;
+  init(x, y, vx, vy, damage, explosiveRadius = 0, chainJumps = 0, executeThreshold = 0) {
+    this.active           = true;
+    this.x                = x;
+    this.y                = y;
+    this.vx               = vx;
+    this.vy               = vy;
+    this.damage           = damage;
+    this.explosiveRadius  = explosiveRadius;
+    this.chainJumps       = chainJumps;
+    this.chainDamage      = damage * 0.6;
+    this.executeThreshold = executeThreshold;
   }
 
   update(dt, game, bounds) {
@@ -77,17 +75,16 @@ export class Projectile {
     this.x += this.vx * dt;
     this.y += this.vy * dt;
 
-    // Deactivate if off-screen
     if (this.x < -20 || this.x > bounds.w + 20 ||
         this.y < -20 || this.y > bounds.h + 20) {
       this.active = false;
       return;
     }
 
-    // Collision vs enemies — query grid instead of full pool scan
-    const QUERY_R = 32; // slightly larger than max enemy radius (28)
+    const QUERY_R = 32;
     for (const e of _grid.query(this.x, this.y, QUERY_R)) {
       if (!e.active) continue;
+      if (e.intangible) continue;
       const dx = this.x - e.x;
       const dy = this.y - e.y;
       if (dx * dx + dy * dy <= e.radius * e.radius) {
@@ -100,15 +97,12 @@ export class Projectile {
   _onHit(target, game) {
     this.active = false;
 
-    // Particle hit sparks (skip on low quality)
     if (game.particles && game.quality !== 'low') {
       game.particles.emitHit(this.x, this.y, target.color);
     }
 
-    // Direct hit
-    _damageEnemy(target, this.damage, game);
+    _damageEnemy(target, this.damage, game, this.executeThreshold, 'projectile');
 
-    // Explosive splash
     if (this.explosiveRadius > 0) {
       const r2 = this.explosiveRadius * this.explosiveRadius;
       for (const e of game.enemyPool.pool) {
@@ -116,13 +110,11 @@ export class Projectile {
         const dx = this.x - e.x;
         const dy = this.y - e.y;
         if (dx * dx + dy * dy <= r2) {
-          _damageEnemy(e, this.damage * 0.6, game);
+          _damageEnemy(e, this.damage * game.tower.splashMult, game, 0, 'projectile');
         }
       }
-      // Register explosion flash for renderer — extended lifetime + shrapnel
-      game.explosions.push({ x: this.x, y: this.y, r: this.explosiveRadius, t: 0.45 });
+      game.explosions.push({ x: this.x, y: this.y, r: this.explosiveRadius, t: 0.45, life: 0.45 });
       audio.fireExplosive();
-      // Shrapnel burst: full on high, skip on medium/low
       if (game.particles && game.quality === 'high') {
         const count = 18;
         for (let i = 0; i < count; i++) {
@@ -140,7 +132,6 @@ export class Projectile {
       }
     }
 
-    // Chain lightning
     if (this.chainJumps > 0) {
       _chainFrom(this.x, this.y, target, this.chainDamage, this.chainJumps, game);
     }
@@ -149,25 +140,56 @@ export class Projectile {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function _damageEnemy(e, dmg, game) {
+function _damageEnemy(e, dmg, game, executeThreshold = 0, source = 'projectile') {
+  if (e.type === EnemyType.COLOSSUS) {
+    if (source === 'projectile' && !e.armorProjectile) { e.armorProjectile = true; return; }
+    if (source === 'ring'       && !e.armorRing)       { e.armorRing       = true; return; }
+    if (source === 'laser'      && !e.armorLaser)      { e.armorLaser      = true; return; }
+  }
+
   e.hp -= dmg;
-  if (e.hp <= 0) {
-    const earned = Math.floor(e.reward * game.currencyMultiplier);
-    game.currency   += earned;
-    game.waveEarned += earned;
-    game.logEarned(earned);
-    _spawnCurrencyPopup(earned, game, e.x, e.y);
-    // Death burst particles + expanding ring
-    if (game.particles && game.quality !== 'low') game.particles.emitDeath(e.x, e.y, e.color);
-    game.deathRings.push({ x: e.x, y: e.y, r: e.radius * 2.5, t: 0.35, color: e.color });
-    // Death sound — sized by enemy type
-    if      (e.type === 'BOSS')              audio.deathBoss();
-    else if (e.type === 'BRUTE')             audio.deathLarge();
-    else if (e.type === 'ELITE')             audio.deathMedium();
-    else                                     audio.deathSmall();
-    // Boss arrival / death edge flash
-    if (e.type === 'BOSS') game.edgeFlash = 0.5;
+  if (e.hp <= 0 || (executeThreshold > 0 && e.hp / e.maxHp < executeThreshold)) {
+    e.hp = 0;
+
+    if (e.type === EnemyType.BOMBER) {
+      _bomberDetonate(e, game);
+      _awardKill(e, game);
+      return;
+    }
+
+    _awardKill(e, game);
     e.active = false;
+  }
+}
+
+function _awardKill(e, game) {
+  const earned = Math.floor(e.reward * game.currencyMultiplier);
+  game.currency   += earned;
+  game.waveEarned += earned;
+  game.logEarned(earned);
+  _spawnCurrencyPopup(earned, game, e.x, e.y);
+  // Leech: restore HP on kill
+  if (game.tower.leechHp > 0) {
+    game.tower.hp = Math.min(game.tower.maxHp, game.tower.hp + game.tower.leechHp);
+  }
+  // Traitor capture roll
+  const pet = game.traitorSystem?.tryCapture(e, game.wave);
+  if (pet) game.pendingTraitorAnnouncements.push(pet);
+  if (game.particles && game.quality !== 'low') game.particles.emitDeath(e.x, e.y, e.color);
+  game.deathRings.push({ x: e.x, y: e.y, r: e.radius * 2.5, t: 0.35, color: e.color });
+  if      (e.type === EnemyType.BOSS)     { audio.deathBoss();   game.edgeFlash = 0.5; game.awardShards(game.wave); }
+  else if (e.type === EnemyType.COLOSSUS) { audio.deathBoss(); _releaseColossusSpawn(e, game); }
+  else if (e.type === EnemyType.BRUTE || e.type === EnemyType.SPAWNER) audio.deathLarge();
+  else if (e.type === EnemyType.ELITE || e.type === EnemyType.PHANTOM) audio.deathMedium();
+  else                                                                   audio.deathSmall();
+}
+
+function _releaseColossusSpawn(colossus, game) {
+  for (let i = 0; i < 3; i++) {
+    const angle = (Math.PI * 2 / 3) * i;
+    const ox = colossus.x + Math.cos(angle) * 20;
+    const oy = colossus.y + Math.sin(angle) * 20;
+    game.enemyPool.spawn(EnemyType.DRONE, Math.max(1, game.wave - 1), ox, oy);
   }
 }
 
@@ -179,7 +201,6 @@ function _chainFrom(x, y, lastHit, damage, jumpsLeft, game) {
   const CHAIN_RANGE = 220;
   const r2 = CHAIN_RANGE * CHAIN_RANGE;
 
-  // Find nearest active enemy not already hit in this chain
   let best = null, bestD2 = Infinity;
   for (const e of game.enemyPool.pool) {
     if (!e.active || e === lastHit) continue;
@@ -190,14 +211,12 @@ function _chainFrom(x, y, lastHit, damage, jumpsLeft, game) {
 
   if (!best) return;
 
-  // Register arc for renderer
   game.lightningArcs.push({ x1: x, y1: y, x2: best.x, y2: best.y, t: 0.35 });
   audio.fireChain();
 
-  // Spark burst at the chain impact point (skip on low quality)
   if (game.particles && game.quality !== 'low') game.particles.emitHit(best.x, best.y, '#e040fb');
 
-  _damageEnemy(best, damage, game);
+  _damageEnemy(best, damage, game, 0, 'projectile');
 
   if (jumpsLeft > 1) {
     _chainFrom(best.x, best.y, best, damage * 0.6, jumpsLeft - 1, game);
@@ -216,14 +235,13 @@ export class ProjectilePool {
     return this.pool.find(p => !p.active) ?? null;
   }
 
-  fire(x, y, vx, vy, damage, explosiveRadius = 0, chainJumps = 0) {
+  fire(x, y, vx, vy, damage, explosiveRadius = 0, chainJumps = 0, executeThreshold = 0) {
     const p = this.acquire();
-    if (p) p.init(x, y, vx, vy, damage, explosiveRadius, chainJumps);
+    if (p) p.init(x, y, vx, vy, damage, explosiveRadius, chainJumps, executeThreshold);
     return p;
   }
 
   update(dt, game) {
-    // Rebuild spatial grid once for the entire frame
     _grid.clear();
     for (const e of game.enemyPool.pool) {
       if (e.active) _grid.insert(e);

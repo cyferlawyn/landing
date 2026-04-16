@@ -31,43 +31,95 @@ html, body {
   flex-direction: column;
   background: #0d0d1a;
   border-left: 1px solid rgba(0, 229, 255, 0.2);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0,229,255,0.2) transparent;
 }
 
-/* ── Shop header ─────────────────────────────────────── */
+/* ── Collapsible tabs ────────────────────────────────── */
 
-#shop-header {
-  padding: 14px 16px 12px;
-  border-bottom: 1px solid rgba(0, 229, 255, 0.15);
+.tab {
   flex-shrink: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
 }
 
-#shop-title {
+.tab.hidden {
+  display: none;
+}
+
+.tab-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 11px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: monospace;
+  color: rgba(0, 229, 255, 0.6);
+  transition: background 0.12s;
+}
+
+.tab-header:hover {
+  background: rgba(0,229,255,0.04);
+}
+
+.tab-header--gold {
+  color: rgba(255, 214, 0, 0.6);
+}
+
+.tab-header--gold:hover {
+  background: rgba(255,214,0,0.04);
+}
+
+.tab-header--dim {
+  color: rgba(255,255,255,0.25);
+}
+
+.tab-header--dim:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.tab-title {
   font-size: 11px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: rgba(0, 229, 255, 0.6);
-  margin-bottom: 6px;
+  flex: 1 1 auto;
 }
 
-#currency-display {
-  font-size: 22px;
-  font-weight: bold;
-  color: #ffd600;
+.tab-chevron {
+  font-size: 8px;
+  flex-shrink: 0;
+  opacity: 0.6;
+  transition: transform 0.15s;
 }
 
-#currency-display span {
-  font-size: 13px;
-  color: rgba(255, 214, 0, 0.6);
-  margin-right: 4px;
+/* When the body is collapsed the chevron flips */
+.tab-body--collapsed + * .tab-chevron,
+.tab-body.tab-body--collapsed ~ .tab-chevron {
+  transform: rotate(180deg);
 }
 
-/* ── Upgrade list ────────────────────────────────────── */
+/* Simpler: header holds chevron, so toggle class on header */
+.tab-header.is-collapsed .tab-chevron {
+  transform: rotate(180deg);
+}
+
+.tab-body {
+  overflow: hidden;
+}
+
+.tab-body--collapsed {
+  display: none;
+}
+
+/* ── Upgrade list ─────────────────────────────────────── */
 
 #upgrade-list {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 10px 10px;
+  padding: 8px 10px 10px;
   scrollbar-width: thin;
   scrollbar-color: rgba(0,229,255,0.3) transparent;
 }
@@ -199,22 +251,153 @@ html, body {
   cursor: default;
 }
 
-/* ── Footer buttons ──────────────────────────────────── */
+/* ── Prestige (Ascension) tab content ────────────────── */
 
-#shop-footer {
-  padding: 10px 10px 14px;
-  border-top: 1px solid rgba(255,255,255,0.07);
+#prestige-shard-display {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffd600;
   flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
+
+#currency-display {
+  font-size: 13px;
+  font-weight: bold;
+  color: #ffd600;
+  flex-shrink: 0;
+}
+
+#prestige-passive-line {
+  font-size: 10px;
+  color: rgba(255, 214, 0, 0.5);
+  padding: 4px 16px 8px;
+}
+
+#prestige-upgrade-list {
+  padding: 0 10px 4px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,214,0,0.2) transparent;
+}
+
+/* Prestige cards share upgrade-card base styles but with gold accent */
+.prestige-card {
+  background: rgba(255,214,0,0.03);
+  border: 1px solid rgba(255,214,0,0.12);
+  border-radius: 4px;
+  padding: 9px 10px;
+  margin-bottom: 7px;
+  transition: border-color 0.15s;
+}
+
+.prestige-card:hover {
+  border-color: rgba(255,214,0,0.35);
+}
+
+.prestige-card .upgrade-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.prestige-card .upgrade-name {
+  font-size: 13px;
+  color: #e0e0e0;
+  flex: 1 1 auto;
+}
+
+.prestige-card .upgrade-tier {
+  font-size: 11px;
+  color: rgba(255,214,0,0.4);
+  flex-shrink: 0;
+}
+
+.prestige-card .upgrade-tier.maxed {
+  color: #ffd600;
+}
+
+.prestige-card.is-maxed {
+  padding: 5px 10px;
+  border-color: rgba(255,214,0,0.08);
+}
+
+.prestige-card.is-maxed .upgrade-card-top {
+  margin-bottom: 0;
+}
+
+.prestige-card.is-maxed .prestige-buy-btn {
+  display: none;
+}
+
+.prestige-buy-btn {
+  width: 100%;
+  padding: 5px 0;
+  background: transparent;
+  border: 1px solid rgba(255,214,0,0.4);
+  color: #ffd600;
+  font-family: monospace;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.prestige-buy-btn:hover:not(:disabled) {
+  background: rgba(255,214,0,0.1);
+}
+
+.prestige-buy-btn:disabled {
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.2);
+  cursor: default;
+}
+
+.prestige-buy-btn.maxed {
+  border-color: rgba(255,214,0,0.25);
+  color: rgba(255,214,0,0.45);
+  cursor: default;
+}
+
+/* ── Ascend button (inside Ascension tab body) ────────── */
+
+#ascend-btn {
+  display: block;
+  width: calc(100% - 20px);
+  margin: 4px 10px 10px;
+  padding: 7px 0;
+  background: transparent;
+  border: 1px solid rgba(255, 214, 0, 0.5);
+  color: rgba(255, 214, 0, 0.85);
+  font-family: monospace;
+  font-size: 11px;
+  letter-spacing: 1px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+#ascend-btn.hidden {
+  display: none;
+}
+
+#ascend-btn:hover:not(:disabled) {
+  background: rgba(255, 214, 0, 0.12);
+  border-color: #ffd600;
+  color: #ffd600;
+}
+
+#ascend-btn:disabled {
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.2);
+  cursor: default;
+}
+
+/* ── Settings tab content ─────────────────────────────── */
 
 #volume-control {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 2px 0 4px;
+  padding: 8px 16px 4px;
 }
 
 #volume-control label {
@@ -257,6 +440,7 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 16px;
 }
 
 #quality-control label {
@@ -296,19 +480,17 @@ html, body {
   background: rgba(0,229,255,0.08);
 }
 
-/* Level button highlighted by AUTO (yellow, not user-chosen) */
 .quality-btn.auto-active {
   border-color: rgba(255,214,0,0.5);
   color: rgba(255,214,0,0.7);
   background: rgba(255,214,0,0.06);
 }
 
-/* ── AUTO toggle row ─────────────────────────────────── */
-
 #auto-quality-control {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 16px;
 }
 
 #auto-quality-btn {
@@ -341,27 +523,10 @@ html, body {
   line-height: 1.3;
 }
 
-#self-destruct-btn {
-  width: 100%;
-  padding: 7px 0;
-  background: transparent;
-  border: 1px solid rgba(255, 152, 0, 0.5);
-  color: rgba(255, 152, 0, 0.8);
-  font-family: monospace;
-  font-size: 11px;
-  letter-spacing: 1px;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-#self-destruct-btn:hover {
-  background: rgba(255, 152, 0, 0.15);
-  border-color: #ff9800;
-  color: #ff9800;
-}
-
 #new-game-btn {
-  width: 100%;
+  display: block;
+  width: calc(100% - 20px);
+  margin: 8px 10px 10px;
   padding: 7px 0;
   background: transparent;
   border: 1px solid rgba(255, 23, 68, 0.4);
@@ -379,7 +544,222 @@ html, body {
   color: #ff1744;
 }
 
-/* ── Confirmation dialogue ───────────────────────────── */
+/* ── Traitor (pet) tab ────────────────────────────────── */
+
+.tab-header--green {
+  color: rgba(76, 175, 80, 0.7);
+}
+
+.tab-header--green:hover {
+  background: rgba(76, 175, 80, 0.05);
+}
+
+#traitor-bonus-display {
+  font-size: 13px;
+  font-weight: bold;
+  color: #4caf50;
+  flex-shrink: 0;
+}
+
+#traitor-passive-line {
+  font-size: 10px;
+  color: rgba(76, 175, 80, 0.55);
+  padding: 4px 16px 6px;
+}
+
+/* Active slots row */
+#traitor-slots {
+  display: flex;
+  gap: 6px;
+  padding: 4px 10px 8px;
+}
+
+.traitor-slot {
+  flex: 1 1 0;
+  min-height: 54px;
+  border-radius: 4px;
+  border: 1px dashed rgba(255,255,255,0.15);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  padding: 4px 2px;
+  font-size: 9px;
+  color: rgba(255,255,255,0.25);
+  text-align: center;
+}
+
+.traitor-slot:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.3);
+}
+
+.traitor-slot.filled {
+  border-style: solid;
+  color: #e0e0e0;
+}
+
+.traitor-slot-type {
+  font-size: 10px;
+  font-weight: bold;
+  line-height: 1.1;
+}
+
+.traitor-slot-unassign {
+  font-size: 8px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 1px;
+}
+
+/* Roster */
+#traitor-roster {
+  padding: 0 10px 8px;
+}
+
+.traitor-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  flex-wrap: wrap;
+}
+
+.traitor-group:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.rarity-badge {
+  font-size: 9px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: rgba(0,0,0,0.3);
+}
+
+.traitor-group-type {
+  font-size: 10px;
+  flex: 1 1 auto;
+  color: rgba(255,255,255,0.7);
+}
+
+.traitor-group-count {
+  font-size: 9px;
+  color: rgba(255,255,255,0.35);
+  flex-shrink: 0;
+}
+
+.traitor-btn {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  font-family: monospace;
+  font-size: 9px;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: background 0.1s, color 0.1s;
+}
+
+.traitor-btn-assign {
+  border: 1px solid rgba(76,175,80,0.4);
+  color: rgba(76,175,80,0.8);
+}
+
+.traitor-btn-assign:hover:not(:disabled) {
+  background: rgba(76,175,80,0.12);
+  color: #4caf50;
+}
+
+.traitor-btn-assign:disabled {
+  border-color: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.2);
+  cursor: default;
+}
+
+.traitor-btn-merge {
+  border: 1px solid rgba(255,152,0,0.5);
+  color: rgba(255,152,0,0.85);
+}
+
+.traitor-btn-merge:hover {
+  background: rgba(255,152,0,0.12);
+  color: #ff9800;
+}
+
+#traitor-roster-empty {
+  font-size: 10px;
+  color: rgba(255,255,255,0.2);
+  padding: 6px 6px 2px;
+  font-style: italic;
+}
+
+/* ── Traitor capture toast ───────────────────────────── */
+
+#traitor-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 10, 20, 0.92);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 4px;
+  padding: 10px 20px;
+  text-align: center;
+  pointer-events: none;
+  z-index: 200;
+  min-width: 200px;
+}
+
+#traitor-toast.hidden {
+  display: none;
+}
+
+#traitor-toast.toast-show {
+  animation: toast-in-out 3s ease forwards;
+}
+
+#traitor-toast-label {
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+  margin-bottom: 4px;
+}
+
+#traitor-toast-rarity {
+  font-size: 13px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+#traitor-toast-type {
+  font-size: 15px;
+  font-weight: bold;
+  color: #e0e0e0;
+}
+
+#traitor-toast-bonus {
+  font-size: 10px;
+  color: rgba(255,255,255,0.45);
+  margin-top: 2px;
+}
+
+@keyframes toast-in-out {
+  0%   { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  12%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  75%  { opacity: 1; transform: translateX(-50%) translateY(0); }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+}
 
 #confirm-overlay {
   position: fixed;
@@ -437,3 +817,68 @@ html, body {
 }
 
 #confirm-no:hover { background: rgba(255,255,255,0.06); }
+
+/* ── Ascend confirmation dialogue ────────────────────── */
+
+#ascend-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+#ascend-overlay.hidden {
+  display: none;
+}
+
+#ascend-box {
+  background: #0d0d1a;
+  border: 1px solid rgba(255,214,0,0.5);
+  padding: 28px 32px;
+  max-width: 340px;
+  text-align: center;
+}
+
+#ascend-box p {
+  font-size: 14px;
+  color: #e0e0e0;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+#ascend-confirm-sub {
+  font-size: 11px;
+  color: rgba(255,214,0,0.7);
+  margin-bottom: 20px !important;
+}
+
+#ascend-box .btn-row {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+#ascend-box button {
+  padding: 7px 24px;
+  font-family: monospace;
+  font-size: 12px;
+  cursor: pointer;
+  background: transparent;
+}
+
+#ascend-yes {
+  border: 1px solid #ffd600;
+  color: #ffd600;
+}
+
+#ascend-yes:hover { background: rgba(255,214,0,0.15); }
+
+#ascend-no {
+  border: 1px solid rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.6);
+}
+
+#ascend-no:hover { background: rgba(255,255,255,0.06); }

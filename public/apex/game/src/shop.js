@@ -77,8 +77,8 @@ const UPGRADES = [
     name: 'Bounty',
     tooltip: 'Multiplies all kill rewards by ×1.10 per tier.\nMax (tier 15): ×4.18 on all currency earned.\nApplies to every weapon and kill source.',
     maxTier: 15,
-    baseCost: 90,
-    costMult: 2.1,
+    baseCost: 100,
+    costMult: 1.638,
     apply(tower, game, tier) {
       game.currencyMultiplier *= 1.10;
     },
@@ -150,6 +150,65 @@ const UPGRADES = [
     costMult: 1.8,
     apply(tower, game, tier) {
       tower.multiShotCount = tier + 1;
+    },
+  },
+  {
+    id: 'overcharge',
+    name: 'Overcharge',
+    tooltip: 'Every Nth shot deals ×4 damage.\nTier 1: every 8th shot.  Tier 2: every 7th.\nTier 3: every 6th.  Tier 4: every 5th.\nTier 5: every 3rd shot.',
+    maxTier: 5,
+    baseCost: 120000,
+    costMult: 2.0,
+    apply(tower, game, tier) {
+      const thresholds = [0, 8, 7, 6, 5, 3];
+      tower.overchargeN = thresholds[tier] ?? 3;
+    },
+  },
+  {
+    id: 'volatile',
+    name: 'Volatile Rounds',
+    tooltip: 'Increases splash damage fraction for Explosive Rounds.\nBase: 60% splash.  Tier 1: 70%  Tier 2: 80%\nTier 3: 90%  Tier 4: 100%  Tier 5: 110%.',
+    maxTier: 5,
+    baseCost: 100000,
+    costMult: 2.0,
+    apply(tower, game, tier) {
+      const fractions = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1];
+      tower.splashMult = fractions[tier] ?? 1.1;
+    },
+  },
+  {
+    id: 'leech',
+    name: 'Leech',
+    tooltip: 'Restores HP on every enemy kill.\nTier 1: +2 HP  Tier 2: +4 HP  Tier 3: +6 HP\nTier 4: +8 HP  Tier 5: +10 HP per kill.',
+    maxTier: 5,
+    baseCost: 150000,
+    costMult: 1.8,
+    apply(tower, game, tier) {
+      tower.leechHp = tier * 2;
+    },
+  },
+  {
+    id: 'ringDps',
+    name: 'Ring of Annihilation',
+    tooltip: 'Multiplies the Orbital Death Ring\'s DPS output.\nTier 1: ×1.5  Tier 2: ×2.0  Tier 3: ×2.75\nTier 4: ×3.5  Tier 5: ×5.0.\nRequires Orbital Death Ring to be unlocked.',
+    maxTier: 5,
+    baseCost: 180000,
+    costMult: 2.0,
+    apply(tower, game, tier) {
+      const mults = [1.0, 1.5, 2.0, 2.75, 3.5, 5.0];
+      tower.ringDpsMult = mults[tier] ?? 5.0;
+    },
+  },
+  {
+    id: 'laserDps',
+    name: 'Apocalypse Laser',
+    tooltip: 'Multiplies the Laser Burst\'s DPS output.\nTier 1: ×1.5  Tier 2: ×2.0  Tier 3: ×2.75\nTier 4: ×3.5  Tier 5: ×5.0.\nRequires Laser Burst to be unlocked.',
+    maxTier: 5,
+    baseCost: 180000,
+    costMult: 2.0,
+    apply(tower, game, tier) {
+      const mults = [1.0, 1.5, 2.0, 2.75, 3.5, 5.0];
+      tower.laserDpsMult = mults[tier] ?? 5.0;
     },
   },
 ];
