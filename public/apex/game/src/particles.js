@@ -14,24 +14,25 @@ class Particle {
     this.color    = '#fff';
   }
 
-  init(x, y, vx, vy, life, radius, color) {
-    this.active  = true;
-    this.x       = x;
-    this.y       = y;
-    this.vx      = vx;
-    this.vy      = vy;
-    this.life    = life;
-    this.maxLife = life;
-    this.radius  = radius;
-    this.color   = color;
+  init(x, y, vx, vy, life, radius, color, friction = 0.88) {
+    this.active   = true;
+    this.x        = x;
+    this.y        = y;
+    this.vx       = vx;
+    this.vy       = vy;
+    this.life     = life;
+    this.maxLife  = life;
+    this.radius   = radius;
+    this.color    = color;
+    this.friction = friction;
   }
 
   update(dt) {
     if (!this.active) return;
     this.x    += this.vx * dt;
     this.y    += this.vy * dt;
-    this.vx   *= 0.88; // friction
-    this.vy   *= 0.88;
+    this.vx   *= Math.pow(this.friction, dt * 60); // frame-rate independent
+    this.vy   *= Math.pow(this.friction, dt * 60);
     this.life -= dt;
     if (this.life <= 0) this.active = false;
   }
@@ -54,8 +55,8 @@ export class ParticleSystem {
     return p;
   }
 
-  _emit(x, y, vx, vy, life, radius, color) {
-    this._acquire().init(x, y, vx, vy, life, radius, color);
+  _emit(x, y, vx, vy, life, radius, color, friction = 0.88) {
+    this._acquire().init(x, y, vx, vy, life, radius, color, friction);
   }
 
   // ── emitters ────────────────────────────────────────────────────────────────
@@ -107,8 +108,40 @@ export class ParticleSystem {
     }
   }
 
-  emitTowerHit(x, y) {
-    const count = 10;
+  // Obliterate kill — long-lived afterglow embers at the kill site.
+  // The burst is already handled by emitDeath() called in _awardKill().
+  emitObliterateKill(x, y, enemyColor) {
+    const EMBER_COLORS = ['#ff6d00', '#ff3d00', '#ff1744', '#ff9100', '#ffab40'];
+
+    // Afterglow embers: very low friction so they keep drifting, long lifetime
+    for (let i = 0; i < 14; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 15 + Math.random() * 45;
+      const rise  = -(25 + Math.random() * 60);
+      const color = EMBER_COLORS[Math.floor(Math.random() * EMBER_COLORS.length)];
+      this._emit(
+        x + (Math.random() - 0.5) * 24, y + (Math.random() - 0.5) * 24,
+        Math.cos(angle) * speed, Math.sin(angle) * speed + rise,
+        2.0 + Math.random() * 1.5,
+        4 + Math.random() * 5,
+        color, 0.97
+      );
+    }
+
+    // 3 large hot cores — bright white/amber, slow rise, long fade
+    for (let i = 0; i < 3; i++) {
+      this._emit(
+        x + (Math.random() - 0.5) * 12, y + (Math.random() - 0.5) * 12,
+        (Math.random() - 0.5) * 18, -(20 + Math.random() * 40),
+        1.5 + Math.random() * 1.0,
+        8 + Math.random() * 6,
+        i === 0 ? '#ffffff' : '#ffab40',
+        0.97
+      );
+    }
+  }
+
+  emitTowerHit(x, y) {    const count = 10;
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 50 + Math.random() * 100;

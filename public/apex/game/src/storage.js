@@ -1,7 +1,9 @@
-const SAVE_KEY     = 'apex_save';
-const PREFS_KEY    = 'apex_prefs';
-const PRESTIGE_KEY = 'apex_prestige';
-const TRAITOR_KEY  = 'apex_traitors';
+const SAVE_KEY              = 'apex_save';
+const PREFS_KEY             = 'apex_prefs';
+const PRESTIGE_KEY          = 'apex_prestige';
+const TRAITOR_KEY           = 'apex_traitors';
+const FACTION_KEY           = 'apex_faction';
+const FACTION_CAPSTONES_KEY = 'apex_faction_capstones';
 
 export function save(state) {
   try {
@@ -86,4 +88,46 @@ export function loadTraitors() {
 
 export function clearTraitors() {
   localStorage.removeItem(TRAITOR_KEY);
+}
+
+export function saveFaction(state) {
+  try {
+    localStorage.setItem(FACTION_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('Faction save failed:', e);
+  }
+}
+
+export function loadFaction() {
+  try {
+    const raw = localStorage.getItem(FACTION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function clearFaction() {
+  localStorage.removeItem(FACTION_KEY);
+}
+
+export function saveFactionCapstones(state) {
+  try {
+    localStorage.setItem(FACTION_CAPSTONES_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn('Faction capstone save failed:', e);
+  }
+}
+
+export function loadFactionCapstones() {
+  try {
+    const raw = localStorage.getItem(FACTION_CAPSTONES_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+export function clearFactionCapstones() {
+  localStorage.removeItem(FACTION_CAPSTONES_KEY);
 }

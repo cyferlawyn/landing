@@ -26,6 +26,20 @@
         </div>
       </div>
 
+      <!-- ── Faction (Covenant) tab — hidden until first ascension ── -->
+      <div class="tab hidden" id="tab-faction">
+        <button class="tab-header tab-header--cyan" data-tab="faction">
+          <span class="tab-title">Covenant</span>
+          <span id="faction-stack-display">&#11042; <span id="faction-stack-value">0</span></span>
+          <span class="tab-chevron">&#9650;</span>
+        </button>
+        <div class="tab-body tab-body--collapsed">
+          <div id="faction-status-line"></div>
+          <div id="faction-tree"></div>
+          <div id="faction-capstone-area"></div>
+        </div>
+      </div>
+
       <!-- ── Ascension tab — hidden until first ascension ── -->
       <div class="tab hidden" id="tab-prestige">
         <button class="tab-header tab-header--gold" data-tab="prestige">
@@ -84,6 +98,17 @@
       </div>
 
     </aside>
+  </div>
+
+  <!-- Faction Choice overlay — shown post-ascension -->
+  <div id="faction-choice-overlay" class="hidden">
+    <div id="faction-choice-box">
+      <h2 id="faction-choice-title">CHOOSE YOUR COVENANT</h2>
+      <p id="faction-choice-sub">Your allegiance shapes the run ahead.</p>
+      <div id="faction-choice-cards">
+        <!-- populated by ui.js -->
+      </div>
+    </div>
   </div>
 
   <!-- Hard Reset confirmation -->

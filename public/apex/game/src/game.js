@@ -10,6 +10,7 @@ export class Game {
     this.currency           = 0;
     this.currencyMultiplier = 1.0;
     this.waveEarned         = 0;  // display accumulator only — not banked at end
+    this.waveKills          = 0;  // enemies killed this wave (cleared % and wave rush)
     this.lastWave           = 0;
     this.lastWaveEarned     = 0;
     this.bestWave           = 1;
@@ -26,9 +27,14 @@ export class Game {
     // Short-lived visual effects (drained each frame by renderer)
     this.explosions    = []; // { x, y, r, t } — t counts down to 0
     this.lightningArcs = []; // { x1, y1, x2, y2, t }
+    this.ricochetLines = []; // { x1, y1, x2, y2, t, life }
     this.deathRings    = []; // { x, y, r, t, color } — expanding ring on enemy death
     this.edgeFlash     = 0;  // seconds remaining for boss screen-edge flash
     this.currencyPopups = []; // { amount, x, y, t } — +$N floaters above killed enemies
+    this.skullPopups    = []; // { x, y, t } — skull floaters on execute kills
+    this.obliterateTimer  = -1;  // countdown in seconds; -1 = inactive
+    this.obliterateOverkill = 0; // overkill multiplier that triggered this round
+    this.blastwaves        = []; // { x, y, r, maxR, t, life } — obliterate shockwave rings
 
     // Particle system — initialized in main.js after bootstrap
     this.particles = null;
@@ -36,7 +42,7 @@ export class Game {
     // Visual quality: 'high' | 'medium' | 'low'
     // Loaded from localStorage in main.js; default high.
     this.quality     = 'high';
-    this.autoQuality = false;  // when true, AUTO mode may step quality down
+    this.autoQuality = true;   // when true, AUTO mode may step quality down
 
     // FPS tracking — maintained by main.js loop, read by renderer
     this.fps         = 60;     // smoothed display value
@@ -58,9 +64,35 @@ export class Game {
     this.prestigeUpgrades   = {};
     this.ascensionCount     = 0;
 
+    // ── Auto-Buyer (prestige upgrade) ───────────────────────────────────────
+    this.autoBuyInterval    = 0;  // seconds between auto-purchases; 0 = disabled
+    this.autoBuyTimer       = 0;
+
+    // ── Shard meta upgrades ─────────────────────────────────────────────────
+    this.shardBonusMult      = 1.0; // multiplier on shards awarded (Shard Tithe)
+    this.veteranBonusDivisor = 0;   // if > 0: floor(wave / divisor) bonus shards on ascend
+
     // ── Traitor (pet) system ────────────────────────────────────────────────
     this.traitorSystem              = null; // set in main.js bootstrap
     this.pendingTraitorAnnouncements = [];  // [{ type, rarity }] drained by ui.js
+
+    // ── Faction (Covenant) system ───────────────────────────────────────────
+    this.factionSystem        = null;   // set in main.js bootstrap
+    // Per-run faction flags (reset by FactionSystem.reapplyAll)
+    this.lureProtocols        = false;  // NEXUS A1
+    this.optimalRoster        = false;  // NEXUS A2
+    this.stackCascade         = false;  // NEXUS A3
+    this.signalHarvest        = false;  // NEXUS B1
+    this.resonanceField       = false;  // NEXUS B2
+    this.apexProtocol         = false;  // NEXUS B3
+    this.dataHarvest          = false;  // NEXUS C1
+    this.stackAmplifier       = false;  // NEXUS C2
+    this.recursiveGrowth      = false;  // NEXUS C3
+    // Neural Stack counters
+    this.neuralStacks         = 0;      // total stacks active this run (permanent + run-earned)
+    this.permanentNeuralStacks = 0;     // preserved stacks from Singularity (loaded from capstone save)
+    // Lure Protocols — which enemy type has 3× capture this wave (set each wave start)
+    this.lureType             = null;
   }
 
   transition(newState) {
@@ -99,7 +131,7 @@ export class Game {
     const mult = wave % 1000 === 0 ? 10
                : wave % 100  === 0 ? 3
                : 1;
-    this.pendingShards += base * mult;
+    this.pendingShards += Math.floor(base * mult * this.shardBonusMult);
     // totalShardsEarned is incremented in ascend() when pending shards are claimed
   }
 
@@ -108,8 +140,23 @@ export class Game {
     return 1 + this.totalShardsEarned * 0.10;
   }
 
-  // Multiplicative damage bonus from active traitor pets (additive per-pet, then ×1+sum).
+  // Multiplicative damage bonus from active traitor pets.
+  // NEXUS B2 (Resonance Field) doubles each pet's bonus.
   traitorDmgMult() {
-    return 1 + (this.traitorSystem?.damageBonus() ?? 0);
+    const bonus = this.traitorSystem?.damageBonus() ?? 0;
+    const resonanceMult = this.resonanceField ? 2 : 1;
+    return 1 + bonus * resonanceMult;
+  }
+
+  // Multiplicative damage bonus from Neural Stacks (NEXUS C2: Stack Amplifier).
+  factionDmgMult() {
+    if (!this.stackAmplifier) return 1.0;
+    return 1 + this.neuralStacks * 0.008;
+  }
+
+  // Multiplicative currency bonus from Neural Stacks (NEXUS C2: Stack Amplifier).
+  factionCurrencyMult() {
+    if (!this.stackAmplifier) return 1.0;
+    return 1 + this.neuralStacks * 0.003;
   }
 }

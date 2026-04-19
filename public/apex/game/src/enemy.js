@@ -47,20 +47,23 @@ export class Enemy {
 
     // Boss enrage state
     this.enraged      = false;
+
+    // Poison DoT state
+    this.poisonDps      = 0;   // damage per second from poison
+    this.poisonTimer    = 0;   // seconds of poison remaining
+    this.poisonTickTimer = 0;  // countdown to next 0.1s tick
   }
 
   init(type, wave, x, y) {
     const def = BASE_STATS[type];
-    const hpScale    = type === EnemyType.BOSS
-      ? Math.pow(1.09, wave - 1)
-      : (type === EnemyType.COLOSSUS ? Math.pow(1.06, wave - 1) : Math.pow(1.07, wave - 1));
+    const hpScale    = type === EnemyType.COLOSSUS
+      ? Math.pow(1.06, wave - 1)
+      : Math.pow(1.07, wave - 1);
 
     this.active      = true;
     this.atTower     = false;
     this.damageTick  = 0;
-    this.damage      = type === EnemyType.BOSS
-      ? Math.floor(def.damage * Math.pow(1.02, wave - 1))
-      : def.damage;
+    this.damage      = def.damage;
     this.type        = type;
     this.x           = x;
     this.y           = y;
@@ -87,6 +90,9 @@ export class Enemy {
     this.armorProjectile = false;
     this.armorRing       = false;
     this.armorLaser      = false;
+    this.poisonDps       = 0;
+    this.poisonTimer     = 0;
+    this.poisonTickTimer = 0;
   }
 
   update(dt, game) {
@@ -242,7 +248,7 @@ const BASE_STATS = {
   [EnemyType.SWARM]:    { hp: 20,   speed: 120, radius: 8,  color: '#69ff47', shape: 'circle',   reward: 4,   damage: 5   },
   [EnemyType.BRUTE]:    { hp: 300,  speed: 78,  radius: 16, color: '#ff9100', shape: 'square',   reward: 50,  damage: 50  },
   [EnemyType.ELITE]:    { hp: 150,  speed: 129, radius: 11, color: '#ea00ff', shape: 'triangle', reward: 30,  damage: 30  },
-  [EnemyType.BOSS]:     { hp: 5000, speed: 80,  radius: 28, color: '#ff1744', shape: 'hexagon',  reward: 300, damage: 80  },
+  [EnemyType.BOSS]:     { hp: 5000, speed: 80,  radius: 28, color: '#ff1744', shape: 'hexagon',  reward: 300, damage: 250 },
   // New types
   [EnemyType.DASHER]:   { hp: 45,   speed: 164, radius: 9,  color: '#00e676', shape: 'circle',   reward: 18,  damage: 20  },
   [EnemyType.BOMBER]:   { hp: 120,  speed: 112, radius: 13, color: '#ff6d00', shape: 'circle',   reward: 35,  damage: 60  },
@@ -250,3 +256,8 @@ const BASE_STATS = {
   [EnemyType.PHANTOM]:  { hp: 130,  speed: 138, radius: 11, color: '#b388ff', shape: 'triangle', reward: 28,  damage: 25  },
   [EnemyType.COLOSSUS]: { hp: 1200, speed: 48,  radius: 24, color: '#ff4081', shape: 'hexagon',  reward: 200, damage: 100 },
 };
+
+// Returns the scaled max-HP of a Drone at a given wave — used as the overkill baseline.
+export function droneHp(wave) {
+  return Math.floor(BASE_STATS[EnemyType.DRONE].hp * Math.pow(1.07, wave - 1));
+}

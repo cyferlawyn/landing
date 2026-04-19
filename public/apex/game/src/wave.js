@@ -3,50 +3,53 @@ import { audio }     from './audio.js';
 
 export class WaveSpawner {
   constructor(game) {
-    this.game      = game;
-    this.queue     = [];
-    this.elapsed   = 0;
-    this.done      = true;
+    this.game         = game;
+    this.done         = true;
+    this.totalSpawned = 0;
   }
 
   begin(waveNumber) {
-    this.queue   = buildWave(waveNumber);
-    this.elapsed = 0;
-    this.done    = false;
-  }
+    const entries = buildWave(waveNumber);
+    const rollovers   = this.game.enemyPool.activeCount();
+    this.totalSpawned = entries.length + rollovers;
+    this.done         = true;   // all enemies exist in the pool from frame 1
 
-  update(dt) {
-    if (this.done) return;
-    this.elapsed += dt;
-
-    while (this.queue.length > 0 && this.elapsed >= this.queue[0].delay) {
-      const entry = this.queue.shift();
-      this._spawnOne(entry.type, entry.edge);
-    }
-
-    if (this.queue.length === 0) this.done = true;
-  }
-
-  _spawnOne(type, edge) {
     const bounds = this.game.projectilePool._bounds;
     const w = bounds.w;
     const h = bounds.h;
-
-    const e = edge ?? Math.floor(Math.random() * 4);
-    let x, y;
     const margin = 40;
-    const jitter = type === EnemyType.SWARM ? 20 : 0;
-    switch (e) {
-      case 0: x = Math.random() * w;         y = -margin + (Math.random() - 0.5) * jitter; break;
-      case 1: x = Math.random() * w;         y = h + margin + (Math.random() - 0.5) * jitter; break;
-      case 2: x = -margin + (Math.random() - 0.5) * jitter; y = Math.random() * h; break;
-      case 3: x = w + margin + (Math.random() - 0.5) * jitter; y = Math.random() * h; break;
-    }
 
-    this.game.enemyPool.spawn(type, this.game.wave, x, y);
-    if (type === EnemyType.BOSS) {
-      this.game.edgeFlash = 0.6;
-      audio.bossArrival();
+    for (const entry of entries) {
+      const edge   = entry.edge ?? Math.floor(Math.random() * 4);
+      const jitter = entry.type === EnemyType.SWARM ? 20 : 0;
+
+      // Base spawn position on the canvas edge
+      let x, y;
+      switch (edge) {
+        case 0: x = Math.random() * w;  y = -margin + (Math.random() - 0.5) * jitter; break;
+        case 1: x = Math.random() * w;  y = h + margin + (Math.random() - 0.5) * jitter; break;
+        case 2: x = -margin + (Math.random() - 0.5) * jitter; y = Math.random() * h; break;
+        case 3: x = w + margin + (Math.random() - 0.5) * jitter; y = Math.random() * h; break;
+      }
+
+      const e = this.game.enemyPool.spawn(entry.type, this.game.wave, x, y);
+
+      // Push the enemy further outside by delay × its own speed so it arrives
+      // at the canvas edge at roughly the same time it would have been spawned.
+      if (e && entry.delay > 0) {
+        const extra = entry.delay * e.baseSpeed;
+        switch (edge) {
+          case 0: e.y -= extra; break;
+          case 1: e.y += extra; break;
+          case 2: e.x -= extra; break;
+          case 3: e.x += extra; break;
+        }
+      }
+
+      if (entry.type === EnemyType.BOSS) {
+        this.game.edgeFlash = 0.6;
+        audio.bossArrival();
+      }
     }
   }
 }

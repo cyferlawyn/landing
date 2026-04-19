@@ -1,17 +1,21 @@
 import { Game, State }    from './game.js';
 import { Tower }           from './tower.js';
-import { EnemyPool }       from './enemy.js';
-import { ProjectilePool }  from './projectile.js';
+import { EnemyType, EnemyPool } from './enemy.js';
+import { ProjectilePool, killEnemy, obliterateWave } from './projectile.js';
 import { WaveSpawner }     from './wave.js';
 import { Renderer }        from './renderer.js';
 import { Shop }            from './shop.js';
 import { PrestigeShop }    from './prestige.js';
 import { TraitorSystem }   from './traitor.js';
+import { FactionSystem }   from './faction.js';
 import { ParticleSystem }  from './particles.js';
 import { audio }           from './audio.js';
+import { applyTabPrefs }   from './ui.js';
 import { save, load, clear, hasSave, savePrefs, loadPrefs,
          savePrestige, loadPrestige, clearPrestige,
-         saveTraitors, loadTraitors, clearTraitors } from './storage.js';
+         saveTraitors, loadTraitors, clearTraitors,
+         saveFaction, loadFaction, clearFaction,
+         saveFactionCapstones, loadFactionCapstones, clearFactionCapstones } from './storage.js';
 
 const canvas        = document.getElementById('gameCanvas');
 const game          = new Game();
@@ -27,16 +31,18 @@ function bootstrap() {
 
   game.tower          = new Tower();
   game.enemyPool      = new EnemyPool(512);
-  game.projectilePool = new ProjectilePool(2048);
+  game.projectilePool = new ProjectilePool(8192);
   game.waveSpawner    = new WaveSpawner(game);
-  game.particles      = new ParticleSystem(512);
+  game.particles      = new ParticleSystem(8192);
   game.traitorSystem  = new TraitorSystem();
+  game.factionSystem  = new FactionSystem();
 
   // Restore preferences (quality, volume) — independent of save data
   if (prefs) {
     if (prefs.quality)             game.quality     = prefs.quality;
     if (prefs.autoQuality != null) game.autoQuality = prefs.autoQuality;
     if (prefs.volume != null)      audio.setVolume(prefs.volume);
+    applyTabPrefs(prefs);
   }
 
   // Restore prestige state — persists across runs and New Game
@@ -51,6 +57,10 @@ function bootstrap() {
   // Restore traitor system — persists across runs and ascensions, wiped only on hard reset
   game.traitorSystem.deserialize(loadTraitors());
 
+  // Restore faction capstones (permanent) then run state
+  game.factionSystem.deserializeCapstones(loadFactionCapstones());
+  game.factionSystem.deserializeRun(loadFaction());
+
   // Apply prestige upgrades on top of fresh tower (before run save overwrites tiers)
   prestigeShop.reapplyAll(game.prestigeUpgrades);
 
@@ -63,22 +73,26 @@ function bootstrap() {
     shop.reapplyAll(game.upgrades);
     // Re-apply prestige after run upgrades (prestige is additive on top)
     prestigeShop.reapplyAll(game.prestigeUpgrades);
+    // Apply faction nodes on top (resets flags then re-applies active faction nodes)
+    game.factionSystem.reapplyAll(game);
     // Restore tower HP after reapplyAll rebuilt the tower
     game.tower.hp = Math.min(saved.towerHP ?? game.tower.maxHp, game.tower.maxHp);
+  } else {
+    // No run save — still apply faction nodes (permanent stacks, 4th slot, etc.)
+    game.factionSystem.reapplyAll(game);
   }
 
   beginWave();
 }
 
-function beginWave() {
-  game.enemyPool.reset();
+function beginWave(keepEnemies = false) {
+  if (!keepEnemies) game.enemyPool.reset();
   game.projectilePool.reset();
-  if (game.particles) game.particles.reset();
-  game.explosions     = [];
-  game.lightningArcs  = [];
-  game.deathRings     = [];
-  game.edgeFlash      = 0;
-  game.currencyPopups = [];
+  // Do NOT clear particle/FX arrays — let active animations finish naturally.
+  // Mark any in-flight blastwaves as kill-done so they don't kill new-wave enemies.
+  for (const w of game.blastwaves) w.killDone = true;
+  game.obliterateTimer    = -1;
+  game.obliterateOverkill = 0;
   game.elapsed        = 0;  // reset per-wave timestamp used by slow/stun
   // Apply regen between waves; full heal only on wave 1 (fresh start)
   if (game.wave === 1) {
@@ -97,6 +111,14 @@ function beginWave() {
   game.tower.overchargeCounter = 0;
   game.waveSpawner.begin(game.wave);
   game.waveEarned = 0;
+  game.waveKills  = 0;
+  // NEXUS A1: pick a random lure type for this wave
+  if (game.lureProtocols) {
+    const types = Object.values(EnemyType);
+    game.lureType = types[Math.floor(Math.random() * types.length)];
+  } else {
+    game.lureType = null;
+  }
   game.transition(State.COMBAT);
 }
 
@@ -155,23 +177,95 @@ function loop(timestamp) {
   requestAnimationFrame(loop);
 }
 
+function tickAutoBuy(dt) {
+  const interval = game.autoBuyInterval ?? 0;
+  if (interval === 0 && (game.prestigeUpgrades?.autoBuy ?? 0) === 0) return;
+
+  if (interval > 0) {
+    game.autoBuyTimer = (game.autoBuyTimer ?? 0) + dt;
+    if (game.autoBuyTimer < interval) return;
+    // Do NOT reset the timer yet — only reset on a successful purchase so that
+    // if nothing is affordable we keep retrying each frame until currency allows it.
+  }
+
+  // Find cheapest non-maxed shop upgrade
+  let bestId   = null;
+  let bestCost = Infinity;
+  for (const entry of shop.catalogue) {
+    if (shop.isMaxed(entry.id)) continue;
+    const c = shop.cost(entry.id);
+    if (c < bestCost) { bestCost = c; bestId = entry.id; }
+  }
+  if (bestId !== null && shop.canAfford(bestId)) {
+    shop.purchase(bestId);
+    game.autoBuyTimer = 0;  // restart interval only after a successful purchase
+  }
+}
+
 function update(dt) {
   switch (game.state) {
     case State.COMBAT:
       game.elapsed = (game.elapsed ?? 0) + dt;
-      game.waveSpawner.update(dt);
       game.enemyPool.update(dt, game);
       game.projectilePool.update(dt, game);
       game.tower.update(dt, game);
       if (game.particles) game.particles.update(dt);
       if (game.resultsTimer > 0) game.resultsTimer -= dt;
       game.tickEarnLog(dt);
+      tickAutoBuy(dt);
 
-      if (game.tower.hp <= 0) {
-        game.tower.hp = 0;
+      // Obliterate countdown
+      if (game.obliterateTimer > 0) {
+        game.obliterateTimer -= dt;
+        if (game.obliterateTimer <= 0) {
+          game.obliterateTimer = -1;
+          // Kill off-screen enemies instantly — the blastwave won't reach them
+          // Emit the blastwave — maxR extends 300px beyond canvas edges to catch
+          // enemies that haven't entered the screen yet
+          const tx = game.tower.x, ty = game.tower.y;
+          const margin = 300;
+          const maxR = Math.sqrt(
+            Math.max(tx, canvas.width  - tx + margin) ** 2 +
+            Math.max(ty, canvas.height - ty + margin) ** 2
+          );
+          const speed = maxR / 0.35; // full sweep in 0.35 s
+          game.blastwaves.push({ x: tx, y: ty, r: game.tower.radius + 4,
+            maxR, speed, t: 0.8, life: 0.8, killDone: false });
+        }
+      }
+
+      // Blastwave contact kills — always expand, kill enemies until killDone
+      for (const w of game.blastwaves) {
+        if (w.r < w.maxR) w.r += w.speed * dt;  // always keep expanding visually
+        if (!w.killDone) {
+          const r2 = w.r * w.r;
+          for (const e of game.enemyPool.pool) {
+            if (!e.active) continue;
+            const dx = e.x - w.x, dy = e.y - w.y;
+            if (dx * dx + dy * dy <= r2) {
+              const ex = e.x, ey = e.y, ec = e.color;
+              killEnemy(e, game);
+              if (game.particles && game.quality !== 'low') {
+                game.particles.emitObliterateKill(ex, ey, ec);
+              }
+            }
+          }
+          if (w.r >= w.maxR) {
+            w.killDone = true;
+            obliterateWave(game); // catch any off-screen stragglers
+          }
+        }
+      }
+
+      if (game.tower.hp <= 0) {        game.tower.hp = 0;
         onDefeated();
-      } else if (game.waveSpawner.done && game.enemyPool.activeCount() === 0) {
+      } else if (game.enemyPool.activeCount() === 0) {
         onWaveComplete();
+      } else if (game.tower.waveSkipThreshold > 0 && game.wave % 10 !== 0) {
+        const total = game.waveSpawner.totalSpawned;
+        if (total > 0 && game.waveKills / total >= game.tower.waveSkipThreshold) {
+          onWaveComplete(true);  // keepEnemies — rollovers carry into next wave
+        }
       }
       break;
 
@@ -183,10 +277,22 @@ function update(dt) {
   }
 }
 
-function onWaveComplete() {
+function onWaveComplete(keepEnemies = false) {
   game.lastWaveEarned = game.waveEarned; // display value only — already credited live
   game.lastWave       = game.wave;
   game.waveEarned     = 0;
+
+  // NEXUS C1: Data Harvest — +1 neural stack per wave (× filled slots if C3 active)
+  if (game.dataHarvest) {
+    let stacks = 1;
+    if (game.recursiveGrowth) {
+      const filled = game.traitorSystem
+        ? game.traitorSystem.slots.filter(Boolean).length
+        : 0;
+      stacks = Math.max(1, filled);
+    }
+    game.neuralStacks += stacks;
+  }
 
   game.wave += 1;
   if (game.wave - 1 > game.bestWave) game.bestWave = game.wave - 1;
@@ -196,7 +302,7 @@ function onWaveComplete() {
 
   // Show results overlay but start next wave immediately
   game.resultsTimer = game.RESULTS_DURATION;
-  beginWave();
+  beginWave(keepEnemies);
 }
 
 function onDefeated() {
@@ -230,6 +336,8 @@ function saveGame() {
   });
   _savePrestigeState();
   saveTraitors(game.traitorSystem.serialize());
+  saveFaction(game.factionSystem.serializeRun(game.neuralStacks));
+  saveFactionCapstones(game.factionSystem.serializeCapstones());
 }
 
 function _savePrestigeState() {
@@ -247,30 +355,58 @@ export function newGame(confirmed) {
   if (!confirmed && hasSave()) return;
   clear();
   clearTraitors();
+  clearFaction();
   game.wave               = 1;
   game.currency           = 0;
   game.upgrades           = {};
   game.currencyMultiplier = 1.0;
   game.bestWave           = 1;
   game.resultsTimer       = 0;
+  game.pendingFactionChoice = false;
   game.tower              = new Tower();
   shop.reapplyAll({});
   prestigeShop.reapplyAll(game.prestigeUpgrades);
+  game.factionSystem.activeFaction = null;
+  game.factionSystem.reapplyAll(game);
   // Apply War Chest start currency
   game.currency = game.prestigeStartCurrency ?? 0;
   game.wave     = game.prestigeStartWave ?? 1;
   beginWave();
 }
 
-// --- ascend: convert pending shards, wipe run, keep prestige ---
-export function ascend() {
+// --- ascend: step 1 — bank shards, call onAscend, show faction choice overlay ---
+export function beginAscend() {
+  // Veteran's Bounty: award bonus shards based on wave reached this run
+  if (game.veteranBonusDivisor > 0) {
+    game.pendingShards += Math.floor(game.wave / game.veteranBonusDivisor);
+  }
+
   // Bank pending shards — now they count toward the passive damage bonus
   game.totalShardsEarned += game.pendingShards;
   game.shards            += game.pendingShards;
   game.pendingShards      = 0;
   game.ascensionCount    += 1;
 
+  // Preserve neural stacks via Singularity before run resets
+  game.factionSystem.onAscend(game);
+
+  // Save permanent faction capstones immediately
+  saveFactionCapstones(game.factionSystem.serializeCapstones());
+  _savePrestigeState();
+
+  // Signal UI to show faction choice overlay (ui.js reads this flag)
+  game.pendingFactionChoice = true;
+}
+
+// --- ascend: step 2 — complete run reset after faction is chosen ---
+export function completeAscend(factionId) {
+  game.pendingFactionChoice = false;
+
+  // Join (or re-join) the chosen faction
+  if (factionId) game.factionSystem.join(factionId);
+
   // Wipe run state
+  clearFaction();
   clear();
   game.wave               = 1;
   game.currency           = 0;
@@ -280,11 +416,13 @@ export function ascend() {
   game.tower              = new Tower();
   shop.reapplyAll({});
   prestigeShop.reapplyAll(game.prestigeUpgrades);
+  game.factionSystem.reapplyAll(game);
 
   // Apply run-start bonuses from prestige
   game.currency = game.prestigeStartCurrency ?? 0;
   game.wave     = game.prestigeStartWave ?? 1;
 
+  saveFaction(game.factionSystem.serializeRun());
   _savePrestigeState();
   beginWave();
 }
@@ -311,7 +449,7 @@ export function setQuality(q) {
 }
 
 // Expose to UI
-window.__apex = { newGame, ascend, selfDestruct, shop, prestigeShop, game, hasSave, audio, setQuality, savePrefs, saveTraitors };
+window.__apex = { newGame, beginAscend, completeAscend, selfDestruct, shop, prestigeShop, game, hasSave, audio, setQuality, savePrefs, saveTraitors };
 
 // Init AudioContext on first user gesture (browser autoplay policy)
 document.addEventListener('click',    () => audio.init(), { once: true });

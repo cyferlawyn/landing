@@ -63,6 +63,22 @@ export class Tower {
     this.ringDpsMult       = 1.0;   // Ring of Annihilation DPS multiplier
     this.laserDpsMult      = 1.0;   // Apocalypse Laser DPS multiplier
 
+    // Prestige: ricochet
+    this.ricochetCount     = 0;     // extra bounce targets per shot
+
+    // Prestige: poison
+    this.poisonFraction    = 0;     // DoT = fraction of hit damage over 3 s (0 = disabled)
+
+    // Prestige: resurgence
+    this.resurgenceHp      = 0;     // fraction of maxHp to revive at (0 = disabled)
+    this.resurgenceUsed    = false; // one-time per run
+
+    // Prestige: wave rush
+    this.waveSkipThreshold = 0;     // 0 = disabled; >0 = fraction of wave that must die to skip
+
+    // Prestige: obliterate
+    this.obliterateDelay   = 0;     // seconds countdown after 10× overkill (0 = disabled)
+
     // Visual
     this.x               = 0;
     this.y               = 0;
@@ -86,6 +102,17 @@ export class Tower {
     }
 
     this.hp       -= amount;
+
+    // Resurgence: one-time death prevention
+    if (this.hp <= 0 && this.resurgenceHp > 0 && !this.resurgenceUsed) {
+      this.resurgenceUsed = true;
+      this.hp             = Math.ceil(this.maxHp * this.resurgenceHp);
+      this.invulnTimer    = 2.0;  // brief invulnerability after revival
+      this.hitFlash       = 0.5;
+      audio.towerHit();
+      if (game && game.particles && game.quality !== 'low') game.particles.emitTowerHit(this.x, this.y);
+      return;
+    }
     this.hitFlash  = 0.12;
     audio.towerHit();
     if (game && game.particles && game.quality !== 'low') game.particles.emitTowerHit(this.x, this.y);
@@ -95,8 +122,8 @@ export class Tower {
     if (this.hitFlash  > 0) this.hitFlash  -= dt;
     if (this.invulnTimer > 0) this.invulnTimer -= dt;
 
-    // Shard passive × traitor pet bonus × base damage for all weapons this frame
-    this._dmgMult = game.shardDmgMult() * game.traitorDmgMult();
+    // Shard passive × traitor pet bonus × faction (neural stacks) × base damage for all weapons this frame
+    this._dmgMult = game.shardDmgMult() * game.traitorDmgMult() * game.factionDmgMult();
 
     this._updateMainGun(dt, game);
     if (this.ringTier > 0)  this._updateRings(dt, game);
@@ -145,6 +172,7 @@ export class Tower {
     // Crit roll — applied to the damage passed into the projectile
     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
     const dmg    = Math.round(this.damage * this._dmgMult * (isCrit ? this.critMult : 1) * overchargeMult);
+    const isOC   = overchargeMult > 1;
 
     if (this.spreadShot) {
       const baseA = Math.atan2(ny, nx);
@@ -152,7 +180,7 @@ export class Tower {
       const extra = this.spreadPellets - 1;
 
       game.projectilePool.fire(ox, oy, nx * this.projectileSpeed, ny * this.projectileSpeed,
-        dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold);
+        dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold, this.ricochetCount, isOC);
 
       const step = extra > 0 ? half / Math.ceil(extra / 2) : 0;
       for (let i = 1; i <= extra; i++) {
@@ -160,11 +188,11 @@ export class Tower {
         const offset = Math.ceil(i / 2) * step * side;
         const a      = baseA + offset;
         game.projectilePool.fire(ox, oy, Math.cos(a) * this.projectileSpeed, Math.sin(a) * this.projectileSpeed,
-          dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold);
+          dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold, this.ricochetCount, isOC);
       }
     } else {
       game.projectilePool.fire(ox, oy, nx * this.projectileSpeed, ny * this.projectileSpeed,
-        dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold);
+        dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold, this.ricochetCount, isOC);
     }
   }
 
@@ -318,14 +346,18 @@ function _spawnCurrencyPopup(amount, game, x, y) {
 }
 
 function _towerKillEnemy(e, game) {
-  const earned = Math.floor(e.reward * game.currencyMultiplier);
+  const earned = Math.floor(e.reward * game.currencyMultiplier * game.factionCurrencyMult());
   game.currency   += earned;
   game.waveEarned += earned;
+  game.waveKills  += 1;
   game.logEarned(earned);
   _spawnCurrencyPopup(earned, game, e.x, e.y);
   // Traitor capture roll
-  const pet = game.traitorSystem?.tryCapture(e, game.wave);
-  if (pet) game.pendingTraitorAnnouncements.push(pet);
+  const pet = game.traitorSystem?.tryCapture(e, game.wave, game);
+  if (pet) {
+    game.pendingTraitorAnnouncements.push(pet);
+    game.traitorSystem.optimizeForNexus(game);
+  }
   // Leech: restore HP on kill
   if (game.tower.leechHp > 0) {
     game.tower.hp = Math.min(game.tower.maxHp, game.tower.hp + game.tower.leechHp);
@@ -353,4 +385,17 @@ function _towerKillEnemy(e, game) {
     audio.deathSmall();
   }
   e.active = false;
+}
+
+// Returns the expected (normalized) damage of a single regular shot, factoring in:
+// base damage (incl. Damage upgrade), shard multiplier, traitor bonus,
+// and expected crit value — but NOT overcharge, spread, explosive, or other modifiers.
+export function normalizedShotDamage(tower, game) {
+  const dmgMult        = game.shardDmgMult() * game.traitorDmgMult() * game.factionDmgMult();
+  const critFactor     = 1 + tower.critChance * (tower.critMult - 1);
+  // Overcharge: every N-th shot is ×4; expected factor = (N−1 + 4) / N = 1 + 3/N
+  const overchargeFactor = tower.overchargeN > 0 ? 1 + 3 / tower.overchargeN : 1;
+  // Execute: skips the last `threshold` fraction of every enemy's HP
+  const executeFactor  = tower.executeThreshold > 0 ? 1 / (1 - tower.executeThreshold) : 1;
+  return tower.damage * dmgMult * critFactor * overchargeFactor * executeFactor;
 }
