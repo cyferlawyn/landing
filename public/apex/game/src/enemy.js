@@ -156,7 +156,7 @@ export class Enemy {
       if (this.spawnTimer <= 0) {
         this.spawnTimer = 1.0;
         const spawnType = Math.random() < 0.5 ? EnemyType.DRONE : EnemyType.SWARM;
-        game.enemyPool.spawn(spawnType, Math.max(1, game.wave - 2), this.x, this.y);
+        game.enemyPool.spawn(spawnType, Math.max(1, game.wave - 2), this.x, this.y, game);
       }
     }
 
@@ -222,9 +222,18 @@ export class EnemyPool {
     return this.pool.find(e => !e.active) ?? null;
   }
 
-  spawn(type, wave, x, y) {
+  spawn(type, wave, x, y, game = null) {
     const e = this.acquire();
-    if (e) e.init(type, wave, x, y);
+    if (e) {
+      e.init(type, wave, x, y);
+      // VANGUARD A1: Advance Guard — +2% speed and +2% damage per wave cleared (stacks within run)
+      if (game && game.vanguardAdvanceGuard && game.vanguardSpeedBonus > 0) {
+        const mult = 1 + game.vanguardSpeedBonus;
+        e.speed     *= mult;
+        e.baseSpeed *= mult;
+        e.damage    *= mult;
+      }
+    }
     return e;
   }
 
@@ -260,4 +269,9 @@ const BASE_STATS = {
 // Returns the scaled max-HP of a Drone at a given wave — used as the overkill baseline.
 export function droneHp(wave) {
   return Math.floor(BASE_STATS[EnemyType.DRONE].hp * Math.pow(1.07, wave - 1));
+}
+
+// Returns the scaled max-HP of a Boss at a given wave — used by Tidal Convergence.
+export function bossWaveHp(wave) {
+  return Math.floor(BASE_STATS[EnemyType.BOSS].hp * Math.pow(1.07, wave - 1));
 }

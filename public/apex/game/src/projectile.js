@@ -127,7 +127,17 @@ export class Projectile {
         const dy = this.y - e.y;
         if (dx * dx + dy * dy <= r2) {
           _damageEnemy(e, this.damage * game.tower.splashMult, game, 0, 'projectile');
+          // Detonation Field: apply slow to splash targets
+          if (game.tower.detonationSlow > 0) {
+            e.slowUntil  = (game.elapsed ?? 0) + game.tower.detonationSlow;
+            e.slowFactor = 0.5;
+          }
         }
+      }
+      // Detonation Field: also slow the direct hit target
+      if (game.tower.detonationSlow > 0) {
+        target.slowUntil  = (game.elapsed ?? 0) + game.tower.detonationSlow;
+        target.slowFactor = 0.5;
       }
       // Register explosion flash for renderer — extended lifetime + shrapnel
       game.explosions.push({ x: this.x, y: this.y, r: this.explosiveRadius, t: 0.45, life: 0.45 });
@@ -165,6 +175,15 @@ export class Projectile {
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
+// WARBORN Blood Rush: called from every kill path to grant a stack and reset decay.
+function _warbornRushOnKill(game) {
+  if (!game.warbornBloodRush) return;
+  game.addRushStacks(1);
+  game.rushDecayTimer      = 3.0;
+  game.rushKillTimer       = 0;
+  game.rushDecayProtected  = false;
+}
+
 function _damageEnemy(e, dmg, game, executeThreshold = 0, source = 'projectile') {
   // Colossus armor: absorb the first hit from each weapon source per wave
   if (e.type === EnemyType.COLOSSUS) {
@@ -175,16 +194,16 @@ function _damageEnemy(e, dmg, game, executeThreshold = 0, source = 'projectile')
 
   e.hp -= dmg;
 
-  // Obliterate — trigger when normalized shot damage is 10× a drone's HP at this wave
-  if (source === 'projectile' && game.tower.obliterateDelay > 0 &&
-      game.obliterateTimer < 0) {
-    const baseline = droneHp(game.wave);
-    const normShot = normalizedShotDamage(game.tower, game);
-    if (normShot >= baseline * 10) {
-      game.obliterateTimer    = game.tower.obliterateDelay;
-      game.obliterateOverkill = Math.floor(normShot / baseline);
+  // WARBORN capstone: regular projectiles remove (rank × 0.1)% current HP — cross-faction
+  if (source === 'projectile') {
+    const hpPct = game.warbornProjectileHpPct?.() ?? 0;
+    if (hpPct > 0 && e.hp > 0) {
+      e.hp -= e.hp * hpPct;
     }
   }
+
+  // Obliterate — now checked once at wave start (see main.js beginWave).
+  // Per-hit check removed; trigger is set by checkObliterateAtWaveStart().
 
   // Poison DoT — stacks additively per hit, duration refreshes each time
   if (source === 'projectile' && game.tower.poisonFraction > 0) {
@@ -194,12 +213,20 @@ function _damageEnemy(e, dmg, game, executeThreshold = 0, source = 'projectile')
     if (e.poisonTickTimer <= 0) e.poisonTickTimer = 0.1; // ensure next tick fires promptly
   }
 
-  if (e.hp <= 0 || (executeThreshold > 0 && e.hp / e.maxHp < executeThreshold)) {
-    const wasExecuted = executeThreshold > 0 && e.hp > 0 && e.hp / e.maxHp < executeThreshold;
+  if (e.hp <= 0 || (executeThreshold > 0 && e.hp / e.maxHp < executeThreshold)
+      || (game.tower.apexBossExecute > 0 && e.type === EnemyType.BOSS && e.hp / e.maxHp < game.tower.apexBossExecute)) {
+    const wasExecuted = e.hp > 0 && (
+      (executeThreshold > 0 && e.hp / e.maxHp < executeThreshold) ||
+      (game.tower.apexBossExecute > 0 && e.type === EnemyType.BOSS && e.hp / e.maxHp < game.tower.apexBossExecute)
+    );
     e.hp = 0;
 
     if (wasExecuted) {
       game.skullPopups.push({ x: e.x, y: e.y - e.radius - 8, t: 1.0 });
+      // Apex Predator: fire rate burst on execute kill
+      if (game.tower.apexFireRateBurst > 0) {
+        game.tower.apexBurstTimer = game.tower.apexBurstDuration;
+      }
     }
 
     // Bomber detonates on death
@@ -222,6 +249,8 @@ function _awardKill(e, game) {
   game.waveKills  += 1;
   game.logEarned(earned);
   _spawnCurrencyPopup(earned, game, e.x, e.y);
+  // WARBORN Blood Rush: any kill resets decay timer and grants a stack
+  _warbornRushOnKill(game);
   // Leech: restore HP on kill
   if (game.tower.leechHp > 0) {
     game.tower.hp = Math.min(game.tower.maxHp, game.tower.hp + game.tower.leechHp);
@@ -234,7 +263,7 @@ function _awardKill(e, game) {
   }
   if (game.particles && game.quality !== 'low') game.particles.emitDeath(e.x, e.y, e.color);
   game.deathRings.push({ x: e.x, y: e.y, r: e.radius * 2.5, t: 0.35, color: e.color });
-  if      (e.type === EnemyType.BOSS)     { audio.deathBoss();   game.edgeFlash = 0.5; game.awardShards(game.wave); }
+  if      (e.type === EnemyType.BOSS)     { audio.deathBoss();   game.edgeFlash = 0.5; game.awardShards(game.wave); game.vanguardBossKilledThisWave = true; }
   else if (e.type === EnemyType.COLOSSUS) { audio.deathBoss(); _releaseColossusSpawn(e, game); }
   else if (e.type === EnemyType.BRUTE || e.type === EnemyType.SPAWNER) audio.deathLarge();
   else if (e.type === EnemyType.ELITE || e.type === EnemyType.PHANTOM) audio.deathMedium();
@@ -247,12 +276,12 @@ function _releaseColossusSpawn(colossus, game) {
     const angle = (Math.PI * 2 / 3) * i;
     const ox = colossus.x + Math.cos(angle) * 20;
     const oy = colossus.y + Math.sin(angle) * 20;
-    game.enemyPool.spawn(EnemyType.DRONE, Math.max(1, game.wave - 1), ox, oy);
+    game.enemyPool.spawn(EnemyType.DRONE, Math.max(1, game.wave - 1), ox, oy, game);
   }
 }
 
 function _spawnCurrencyPopup(amount, game, x, y) {
-  game.currencyPopups.push({ amount, x, y, t: 0.9 });
+  // Currency popups removed — no-op kept so call sites compile without changes
 }
 
 function _chainFrom(x, y, lastHit, damage, jumpsLeft, game) {
@@ -280,7 +309,9 @@ function _chainFrom(x, y, lastHit, damage, jumpsLeft, game) {
   _damageEnemy(best, damage, game, 0, 'projectile');
 
   if (jumpsLeft > 1) {
-    _chainFrom(best.x, best.y, best, damage * 0.6, jumpsLeft - 1, game);
+    // Arc Mastery: each jump escalates by arcMasteryDmgMult (default 0.6 falloff, boosted if > 1.0)
+    const jumpMult = game.tower.arcMasteryDmgMult > 1.0 ? game.tower.arcMasteryDmgMult : 0.6;
+    _chainFrom(best.x, best.y, best, damage * jumpMult, jumpsLeft - 1, game);
   }
 }
 
@@ -394,4 +425,23 @@ export function killEnemy(e, game) {
 // Called as cleanup when the blastwave finishes expanding.
 export function obliterateWave(game) {
   for (const e of game.enemyPool.pool) killEnemy(e, game);
+}
+
+// Check obliterate threshold at wave start. Returns true if overkill fires, false if not.
+// If false and autoAscensionMode === 'overkill', main.js should trigger beginAscend().
+export function checkObliterateAtWaveStart(game) {
+  if (game.tower.obliterateDelay <= 0) return false;
+  const baseline  = droneHp(game.wave);
+  const normShot  = normalizedShotDamage(game.tower, game);
+  const checkMult = game.vanguardObliterateCheckMult?.() ?? 1.0;
+  // WARBORN capstone: each projectile also removes hpPct × currentHP as true damage.
+  // Against a baseline-HP drone this adds hpPct × baseline to effective damage.
+  const hpPctBonus = (game.warbornProjectileHpPct?.() ?? 0) * baseline;
+  const effectiveDmg = normShot + hpPctBonus;
+  if (effectiveDmg * checkMult >= baseline * 10) {
+    game.obliterateTimer    = game.tower.obliterateDelay;
+    game.obliterateOverkill = Math.floor(effectiveDmg * checkMult / baseline);
+    return true;
+  }
+  return false;
 }

@@ -32,9 +32,10 @@ export class Game {
     this.edgeFlash     = 0;  // seconds remaining for boss screen-edge flash
     this.currencyPopups = []; // { amount, x, y, t } — +$N floaters above killed enemies
     this.skullPopups    = []; // { x, y, t } — skull floaters on execute kills
-    this.obliterateTimer  = -1;  // countdown in seconds; -1 = inactive
-    this.obliterateOverkill = 0; // overkill multiplier that triggered this round
-    this.blastwaves        = []; // { x, y, r, maxR, t, life } — obliterate shockwave rings
+    this.obliterateTimer    = -1;   // countdown in seconds; -1 = inactive
+    this.obliterateOverkill = 0;   // overkill multiplier that triggered this round
+    this.obliterateInFlight = false; // true while blastwave kill setTimeout is pending
+    this.blastwaves         = []; // { x, y, r, maxR, t, life } — obliterate shockwave rings
 
     // Particle system — initialized in main.js after bootstrap
     this.particles = null;
@@ -71,6 +72,7 @@ export class Game {
     // ── Shard meta upgrades ─────────────────────────────────────────────────
     this.shardBonusMult      = 1.0; // multiplier on shards awarded (Shard Tithe)
     this.veteranBonusDivisor = 0;   // if > 0: floor(wave / divisor) bonus shards on ascend
+    this.shardCovenantMult   = 0;   // 0 = disabled; coefficient × shards = wave bonus mult
 
     // ── Traitor (pet) system ────────────────────────────────────────────────
     this.traitorSystem              = null; // set in main.js bootstrap
@@ -93,6 +95,72 @@ export class Game {
     this.permanentNeuralStacks = 0;     // preserved stacks from Singularity (loaded from capstone save)
     // Lure Protocols — which enemy type has 3× capture this wave (set each wave start)
     this.lureType             = null;
+
+    // ── WARBORN faction state ───────────────────────────────────────────────
+    // Node flags (reset by FactionSystem.reapplyAll)
+    this.warbornMortar        = false;  // A1
+    this.warbornHeavyOrdnance = false;  // A2
+    this.warbornCarpetBombing = false;  // A3
+    this.warbornRallyCry      = false;  // B1
+    this.warbornFury          = false;  // B2
+    this.warbornAvatarOfWar   = false;  // B3
+    this.warbornBloodRush     = false;  // C1
+    this.warbornRampage       = false;  // C2
+    this.warbornUnstoppable   = false;  // C3
+
+    // Mortar loop state (per-run, not saved)
+    this.mortarTrackTimer  = 0;      // counts up 0→0.75 s (tracking phase)
+    this.mortarLocked      = false;  // true = locked, waiting for flight
+    this.mortarLockedX     = 0;
+    this.mortarLockedY     = 0;
+    this.mortarInFlight    = false;
+    this.mortarFlightTimer = 0;      // counts down 0.25→0
+    this.mortarCursorX     = 0;      // canvas coords, updated by mousemove
+    this.mortarCursorY     = 0;
+    this.mortarCursorFrozen = false; // true = crosshair locked in place on click
+
+    // Ability cooldowns/timers (per-run, not saved)
+    this.overdriveCooldown  = 0;    // seconds until Overdrive can be used again
+    this.overdriveActive    = false;
+    this.overdriveTimer     = 0;    // seconds remaining in active burst
+    this.furyCooldown       = 0;
+    this.furyActive         = false;
+    this.furyTimer          = 0;
+    this.annihilationCooldown = 0;
+
+    // Rush Stack state (per-run, not saved)
+    this.rushStacks         = 0;
+    this.rushDecayTimer     = 0;    // counts down; 0 = start decaying
+    this.rushDecayProtected = false;// Unstoppable wave-start protection
+    this.rushKillTimer      = 0;    // counts up; reset on kill; stack if < 1.5s
+
+    // Cross-faction permanent capstone rank (persists like NEXUS permanentNeuralStacks)
+    // Loaded from factionCapstones save; read by projectile.js and mortar damage calc
+    this.warbornCapstoneRank = 0;
+
+    // ── VANGUARD faction state ──────────────────────────────────────────────
+    // Node flags (reset by FactionSystem.reapplyAll)
+    this.vanguardAdvanceGuard  = false; // A1
+    this.vanguardTideSurge     = false; // A2
+    this.vanguardSpoilsOfWar   = false; // A3
+    this.vanguardEternalTithe  = false; // B1
+    this.vanguardShardMastery  = false; // B2
+    this.vanguardIronVault     = false; // B3
+    this.vanguardBattleHardened = false;// C1
+    this.vanguardMomentum      = false; // C2
+    this.vanguardTidalConvergence = false; // C3
+    this.vanguardIronWill      = false; // C3 legacy alias (old saves) — no longer functional
+
+    // Per-run VANGUARD state (reset on ascension)
+    this.vanguardSpeedBonus    = 0;     // accumulated +2%/wave (applied multiplicatively in enemy.js)
+    this.vanguardSpoilsStacks  = 0;     // current A3 additive stack count
+    this.vanguardBossKilledThisWave = false; // track boss death for Tide Surge trigger
+
+    // Cross-faction capstone rank
+    this.vanguardCapstoneRank  = 0;
+
+    // Auto-ascension mode (capstone synergy): 'off' | 'overkill' | 'defeat'
+    this.autoAscensionMode     = 'off';
   }
 
   transition(newState) {
@@ -136,8 +204,13 @@ export class Game {
   }
 
   // Passive damage multiplier from total shards ever earned (spent shards still count).
+  // VANGUARD C1 Battle Hardened: ×1.5 coefficient → 0.15
+  // VANGUARD B2 Shard Mastery:   ×2 the C1 coefficient → 0.30 (or 0.20 without C1)
   shardDmgMult() {
-    return 1 + this.totalShardsEarned * 0.10;
+    let coeff = 0.10;
+    if (this.vanguardBattleHardened) coeff *= 1.5;
+    if (this.vanguardShardMastery)   coeff *= 2;
+    return 1 + this.totalShardsEarned * coeff;
   }
 
   // Multiplicative damage bonus from active traitor pets.
@@ -158,5 +231,74 @@ export class Game {
   factionCurrencyMult() {
     if (!this.stackAmplifier) return 1.0;
     return 1 + this.neuralStacks * 0.003;
+  }
+
+  // WARBORN: maximum Rush Stacks (base 1000, +25 per Eternal Warrior rank)
+  rushStackCap() {
+    return 1000 + this.warbornCapstoneRank * 25;
+  }
+
+  // Increment Rush Stacks by n, clamped to the cap.
+  addRushStacks(n = 1) {
+    this.rushStacks = Math.min(this.rushStackCap(), this.rushStacks + n);
+  }
+
+  // WARBORN: Rush Stack damage multiplier (Blood Rush C1, each stack +3%)
+  rushDmgMult() {
+    if (!this.warbornBloodRush || this.rushStacks === 0) return 1.0;
+    return 1 + this.rushStacks * 0.03;
+  }
+
+  // WARBORN: Fury damage multiplier
+  furyDmgMult() {
+    return (this.warbornFury && this.furyActive) ? 2.0 : 1.0;
+  }
+
+  // WARBORN: Overdrive fire-rate multiplier
+  overdriveFireRateMult() {
+    return (this.warbornRallyCry && this.overdriveActive) ? 3.0 : 1.0;
+  }
+
+  // WARBORN: Rampage fire-rate bonus (% per 10 stacks)
+  rampageFireRateMult() {
+    if (!this.warbornRampage || this.rushStacks === 0) return 1.0;
+    return 1 + Math.floor(this.rushStacks / 10) * 0.01;
+  }
+
+  // WARBORN: cross-faction current-HP removal per regular projectile hit
+  warbornProjectileHpPct() {
+    if (this.warbornCapstoneRank <= 0) return 0;
+    return this.warbornCapstoneRank * 0.001; // rank × 0.1%
+  }
+
+  // WARBORN: mortar current-HP removal per hit (capstone rank 1 = 5%, +0.1%/rank)
+  warbornMortarHpPct() {
+    if (this.warbornCapstoneRank <= 0) return 0;
+    return 0.05 + (this.warbornCapstoneRank - 1) * 0.001;
+  }
+
+  // WARBORN: ability cooldown reduction from capstone (cap 30 s)
+  warbornCooldownReduction() {
+    return Math.min(30, this.warbornCapstoneRank * 0.1);
+  }
+
+  // VANGUARD: Spoils of War damage multiplier (A3)
+  // Each surviving carryover enemy at switch = +5% dmg until next switch
+  vanguardSpoilsDmgMult() {
+    if (!this.vanguardSpoilsOfWar || this.vanguardSpoilsStacks === 0) return 1.0;
+    return 1 + this.vanguardSpoilsStacks * 0.05;
+  }
+
+  // VANGUARD: Spoils of War crit damage multiplier (A3)
+  // Each surviving carryover enemy at switch = +5% crit damage
+  vanguardSpoilsCritAdd() {
+    if (!this.vanguardSpoilsOfWar || this.vanguardSpoilsStacks === 0) return 0;
+    return this.vanguardSpoilsStacks * 0.05;
+  }
+
+  // VANGUARD capstone: multiplier applied to obliterate normShot check only
+  vanguardObliterateCheckMult() {
+    if (this.vanguardCapstoneRank <= 0) return 1.0;
+    return 1 + this.vanguardCapstoneRank * 0.25;
   }
 }

@@ -4,28 +4,7 @@ import { Tower } from './tower.js';
 // Each entry: { id, name, tooltip, maxTier, baseCost, costMult, apply(tower, game, tier) }
 
 const UPGRADES = [
-  {
-    id: 'damage',
-    name: 'Damage',
-    tooltip: 'Multiplies base damage by ×1.25 per purchase. Max 50 tiers.\nBase: 35. Affects all weapons — main gun, laser, and orbital ring.',
-    maxTier: 50,
-    baseCost: 50,
-    costMult: 1.25,
-    apply(tower, game, tier) {
-      tower.damage = Math.round(tower.damage * 1.25);
-    },
-  },
-  {
-    id: 'fireRate',
-    name: 'Fire Rate',
-    tooltip: 'Multiplies fire rate by ×1.10 per tier.\nBase: 1.5 shots/s → max (tier 10): ~3.9 shots/s.',
-    maxTier: 10,
-    baseCost: 60,
-    costMult: 1.8,
-    apply(tower, game, tier) {
-      tower.fireRate *= 1.10;
-    },
-  },
+  // ── Sorted by tier-1 base cost (ascending) ───────────────────────────────
   {
     id: 'projectileSpeed',
     name: 'Projectile Speed',
@@ -46,6 +25,28 @@ const UPGRADES = [
     costMult: 1.55,
     apply(tower, game, tier) {
       tower.range *= 1.10;
+    },
+  },
+  {
+    id: 'damage',
+    name: 'Damage',
+    tooltip: 'Multiplies base damage by ×1.25 per purchase. Max 50 tiers.\nBase: 35. Affects all weapons — main gun, laser, and orbital ring.',
+    maxTier: 50,
+    baseCost: 50,
+    costMult: 1.25,
+    apply(tower, game, tier) {
+      tower.damage = Math.round(tower.damage * 1.25);
+    },
+  },
+  {
+    id: 'fireRate',
+    name: 'Fire Rate',
+    tooltip: 'Multiplies fire rate by ×1.10 per tier.\nBase: 1.5 shots/s → max (tier 10): ~3.9 shots/s.',
+    maxTier: 10,
+    baseCost: 60,
+    costMult: 1.8,
+    apply(tower, game, tier) {
+      tower.fireRate *= 1.10;
     },
   },
   {
@@ -133,7 +134,7 @@ const UPGRADES = [
   {
     id: 'chainLightning',
     name: 'Chain Lightning',
-    tooltip: 'On hit, lightning jumps to a nearby enemy dealing full damage.\nEach tier adds one additional jump.\nMax (tier 5): 5 chain jumps per projectile.',
+    tooltip: 'On hit, lightning jumps to nearby enemies, dealing 60% of the previous jump\'s damage.\nEach tier adds one additional jump.\nMax (tier 5): 5 chain jumps per projectile.',
     maxTier: 5,
     baseCost: 12000,
     costMult: 2.0,
@@ -153,18 +154,6 @@ const UPGRADES = [
     },
   },
   {
-    id: 'overcharge',
-    name: 'Overcharge',
-    tooltip: 'Every Nth shot deals ×4 damage.\nTier 1: every 8th shot.  Tier 2: every 7th.\nTier 3: every 6th.  Tier 4: every 5th.\nTier 5: every 3rd shot.',
-    maxTier: 5,
-    baseCost: 120000,
-    costMult: 2.0,
-    apply(tower, game, tier) {
-      const thresholds = [0, 8, 7, 6, 5, 3];
-      tower.overchargeN = thresholds[tier] ?? 3;
-    },
-  },
-  {
     id: 'volatile',
     name: 'Volatile Rounds',
     tooltip: 'Increases splash damage fraction for Explosive Rounds.\nBase: 60% splash.  Tier 1: 70%  Tier 2: 80%\nTier 3: 90%  Tier 4: 100%  Tier 5: 110%.',
@@ -174,6 +163,18 @@ const UPGRADES = [
     apply(tower, game, tier) {
       const fractions = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1];
       tower.splashMult = fractions[tier] ?? 1.1;
+    },
+  },
+  {
+    id: 'overcharge',
+    name: 'Overcharge',
+    tooltip: 'Every Nth shot deals ×4 damage.\nTier 1: every 8th shot.  Tier 2: every 7th.\nTier 3: every 6th.  Tier 4: every 5th.\nTier 5: every 3rd shot.',
+    maxTier: 5,
+    baseCost: 120000,
+    costMult: 2.0,
+    apply(tower, game, tier) {
+      const thresholds = [0, 8, 7, 6, 5, 3];
+      tower.overchargeN = thresholds[tier] ?? 3;
     },
   },
   {

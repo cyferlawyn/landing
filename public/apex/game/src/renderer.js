@@ -66,9 +66,12 @@ export class Renderer {
     this._drawTower();
     this._drawBlastwaves();
     this._drawPoisonIndicators();
+    this._drawMortarCrosshair();
     if (game.particles) game.particles.draw(ctx, game.quality);
     this._drawEdgeFlash();
     this._drawHUD();
+    this._drawWarbornHUD();
+    this._drawVanguardHUD();
     this._drawStateOverlay();
   }
 
@@ -220,7 +223,7 @@ export class Renderer {
     ctx.fill();
     ctx.restore();
 
-    // Shield / invuln visuals
+    // Invuln ring (Resurgence proc)
     if (t.invulnTimer > 0) {
       // Pulsing gold invulnerability ring — drawn outside the hex
       const invR   = r + 10;
@@ -235,23 +238,255 @@ export class Renderer {
       ctx.arc(cx, cy, invR, 0, Math.PI * 2);
       ctx.stroke();
       ctx.restore();
-    } else if ((t.shieldCharges ?? 0) > 0) {
-      // Shield charge pips — small gold dots arranged around the tower
-      const pipR = r + 8;
+    }
+  }
+
+  // ── WARBORN: mortar crosshair ────────────────────────────────────────────────
+
+  _drawMortarCrosshair() {
+    const { ctx, game } = this;
+    if (!game.warbornMortar) return;
+
+    const cx = game.mortarCursorX;
+    const cy = game.mortarCursorY;
+    const RED = '#ff1744';
+
+    if (game.mortarInFlight) {
+      // Draw mortar arc from tower to locked position
+      const tx = game.tower.x, ty = game.tower.y;
+      const lx = game.mortarLockedX, ly = game.mortarLockedY;
+      const progress = 1 - game.mortarFlightTimer / 0.25;
+      // Arc: midpoint elevated
+      const mx = (tx + lx) / 2;
+      const my = (ty + ly) / 2 - 80;
+      const t  = progress;
+      const bx = (1 - t) * (1 - t) * tx + 2 * (1 - t) * t * mx + t * t * lx;
+      const by = (1 - t) * (1 - t) * ty + 2 * (1 - t) * t * my + t * t * ly;
+
       ctx.save();
-      for (let i = 0; i < t.shieldCharges; i++) {
-        const angle = (Math.PI * 2 / t.shieldChargesMax) * i - Math.PI / 2;
-        const px = cx + pipR * Math.cos(angle);
-        const py = cy + pipR * Math.sin(angle);
-        ctx.beginPath();
-        ctx.arc(px, py, 3, 0, Math.PI * 2);
-        ctx.fillStyle   = '#ffd600';
-        ctx.shadowBlur  = 8;
-        ctx.shadowColor = '#ffd600';
-        ctx.fill();
+      ctx.strokeStyle = RED;
+      ctx.shadowBlur  = game.quality !== 'low' ? 8 : 0;
+      ctx.shadowColor = RED;
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(tx, ty);
+      ctx.quadraticCurveTo(mx, my, bx, by);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Projectile dot
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle   = '#ff4081';
+      ctx.shadowBlur  = 12;
+      ctx.shadowColor = RED;
+      ctx.beginPath();
+      ctx.arc(bx, by, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      // Locked target reticle
+      this._drawTargetReticle(lx, ly, 12, RED, 1.0);
+      return;
+    }
+
+    if (game.mortarLocked) {
+      // Locked — solid bright reticle
+      this._drawTargetReticle(game.mortarLockedX, game.mortarLockedY, 12, RED, 1.0);
+      return;
+    }
+
+    const FROZEN_COLOR = '#ff9100';
+
+    // Tracking phase — shrinking crosshair; orange and fully-sized when frozen
+    if (game.mortarCursorFrozen) {
+      this._drawTargetReticle(cx, cy, 28, FROZEN_COLOR, 0.9);
+      // Pause indicator above reticle
+      ctx.save();
+      ctx.font        = 'bold 11px monospace';
+      ctx.textAlign   = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle   = FROZEN_COLOR;
+      ctx.shadowBlur  = game.quality !== 'low' ? 8 : 0;
+      ctx.shadowColor = FROZEN_COLOR;
+      ctx.fillText('[ ]', cx, cy - 42);
+      ctx.restore();
+      return;
+    }
+
+    const trackFrac  = game.mortarTrackTimer / 0.75;  // 0→1
+    const outerR     = 28 - trackFrac * 16;           // shrinks 28→12
+    const alpha      = 0.55 + trackFrac * 0.35;
+    this._drawTargetReticle(cx, cy, outerR, RED, alpha);
+  }
+
+  _drawTargetReticle(x, y, r, color, alpha) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = color;
+    ctx.shadowBlur  = this.game.quality !== 'low' ? 10 : 0;
+    ctx.shadowColor = color;
+    ctx.lineWidth   = 1.5;
+    // Circle
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    // Cross lines
+    const gap = r * 0.3;
+    ctx.beginPath();
+    ctx.moveTo(x - r - 4, y); ctx.lineTo(x - gap, y);
+    ctx.moveTo(x + gap,   y); ctx.lineTo(x + r + 4, y);
+    ctx.moveTo(x, y - r - 4); ctx.lineTo(x, y - gap);
+    ctx.moveTo(x, y + gap);   ctx.lineTo(x, y + r + 4);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ── WARBORN HUD: Rush Stacks + Ability panel ──────────────────────────────────
+
+  _drawWarbornHUD() {
+    const { ctx, canvas, game } = this;
+    if (!game.warbornBloodRush && !game.warbornRallyCry) return;
+
+    const WARBORN_RED = '#ff1744';
+
+    let hudY = 80; // start below existing HUD elements (adjusted for larger wave label)
+
+    // Rush Stack counter (C1 Blood Rush)
+    if (game.warbornBloodRush) {
+      const stacks = game.rushStacks;
+      ctx.save();
+      ctx.textAlign   = 'left';
+      ctx.font        = '13px monospace';
+      const dmgBonus  = stacks > 0 ? `+${fmt(stacks * 3)}% dmg` : '';
+      const rushLabel = `⚔ ${fmt(stacks)} rush${dmgBonus ? '  ' + dmgBonus : ''}`;
+      ctx.fillStyle   = stacks > 0 ? WARBORN_RED : 'rgba(255,23,68,0.3)';
+      if (stacks > 0 && game.quality !== 'low') {
+        ctx.shadowBlur  = 6;
+        ctx.shadowColor = WARBORN_RED;
+      }
+      ctx.fillText(rushLabel, 12, hudY);
+      hudY += 17;
+
+      // Decay bar: always show when stacks > 0; full and bright when decay is paused
+      if (stacks > 0) {
+        const pct = game.rushDecayProtected ? 1.0 : Math.min(1, game.rushDecayTimer / 3.0);
+        const barColor = game.rushDecayProtected ? '#ffffff' : WARBORN_RED;
+        ctx.fillStyle = 'rgba(255,255,255,0.1)';
+        ctx.fillRect(12, hudY, 60, 3);
+        ctx.fillStyle = barColor;
+        ctx.fillRect(12, hudY, 60 * pct, 3);
+        hudY += 8;
       }
       ctx.restore();
     }
+
+    // Ability panel (B1/B2/B3)
+    if (!game.warbornRallyCry) return;
+
+    const abilities = [];
+    if (game.warbornRallyCry) {
+      abilities.push({
+        key: '1', name: 'OVERDRIVE',
+        active: game.overdriveActive, timer: game.overdriveTimer, maxTimer: 5,
+        cooldown: game.overdriveCooldown, maxCd: 60,
+      });
+    }
+    if (game.warbornFury) {
+      abilities.push({
+        key: '2', name: 'FURY',
+        active: game.furyActive, timer: game.furyTimer, maxTimer: 4,
+        cooldown: game.furyCooldown, maxCd: 60,
+      });
+    }
+    if (game.warbornAvatarOfWar) {
+      abilities.push({
+        key: '3', name: 'ANNIHIL.',
+        active: false, timer: 0, maxTimer: 1,
+        cooldown: game.annihilationCooldown, maxCd: 60,
+      });
+    }
+
+    const panelX  = canvas.width - 140;
+    let   panelY  = canvas.height - 20 - abilities.length * 30;
+
+    ctx.save();
+    for (const ab of abilities) {
+      const ready = !ab.active && ab.cooldown <= 0;
+      const color = ab.active ? '#ff4081' : ready ? WARBORN_RED : 'rgba(255,23,68,0.35)';
+
+      // Key badge
+      ctx.font        = 'bold 14px monospace';
+      ctx.textAlign   = 'left';
+      ctx.fillStyle   = color;
+      ctx.fillText(`[${ab.key}]`, panelX, panelY);
+
+      // Name
+      ctx.font      = '13px monospace';
+      ctx.fillStyle = color;
+      ctx.fillText(ab.name, panelX + 28, panelY);
+
+      // Status bar
+      const barX = panelX;
+      const barY = panelY + 4;
+      const barW = 120;
+      const barH = 3;
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(barX, barY, barW, barH);
+
+      if (ab.active) {
+        // Active: green fill showing remaining duration
+        const pct = Math.min(1, ab.timer / ab.maxTimer);
+        ctx.fillStyle = '#ff4081';
+        ctx.fillRect(barX, barY, barW * pct, barH);
+      } else if (ab.cooldown > 0) {
+        // Cooldown: red fill showing remaining cooldown (inverted — depletes)
+        const pct = Math.min(1, ab.cooldown / ab.maxCd);
+        ctx.fillStyle = 'rgba(255,23,68,0.4)';
+        ctx.fillRect(barX, barY, barW * (1 - pct), barH);
+      } else {
+        // Ready
+        ctx.fillStyle = WARBORN_RED;
+        ctx.fillRect(barX, barY, barW, barH);
+      }
+
+      panelY += 30;
+    }
+    ctx.restore();
+  }
+
+  // ── VANGUARD HUD ──────────────────────────────────────────────────────────────
+
+  _drawVanguardHUD() {
+    const { ctx, game } = this;
+    if (!game.vanguardSpoilsOfWar && !game.vanguardAdvanceGuard && !game.vanguardTidalConvergence) return;
+
+    const VANGUARD_GREEN = '#76ff03';
+    let hudY = 80;
+
+    // Build a single line: speed bonus + spoils bonus + tidal convergence indicator
+    const parts = [];
+    if (game.vanguardAdvanceGuard && game.vanguardSpeedBonus > 0)
+      parts.push(`\u26A1 +${Math.round(game.vanguardSpeedBonus * 100)}% spd`);
+    if (game.vanguardSpoilsOfWar) {
+      const dmgBonus = game.vanguardSpoilsStacks * 5;
+      parts.push(`\u2694 +${fmt(dmgBonus)}% dmg/crit`);
+    }
+    if (game.vanguardTidalConvergence)
+      parts.push(`\u27BF \u00D710 wave`);
+
+    if (parts.length === 0) return;
+
+    const stacks     = game.vanguardSpoilsOfWar ? game.vanguardSpoilsStacks : 0;
+    const hasStacks  = stacks > 0 || game.vanguardTidalConvergence;
+    ctx.save();
+    ctx.textAlign = 'left';
+    ctx.font      = '13px monospace';
+    ctx.fillStyle = hasStacks ? VANGUARD_GREEN : 'rgba(118,255,3,0.45)';
+    if (hasStacks && game.quality !== 'low') { ctx.shadowBlur = 6; ctx.shadowColor = VANGUARD_GREEN; }
+    ctx.fillText(parts.join('  '), 12, hudY);
+    ctx.restore();
   }
 
   _hexPath(cx, cy, r) {
@@ -923,7 +1158,7 @@ export class Renderer {
     const t = game.tower;
     if (!t) return;
 
-    ctx.font      = '13px monospace';
+    ctx.font      = '16px monospace';
     ctx.textAlign = 'left';
     ctx.fillStyle = COLORS.text;
     ctx.fillText(`Wave ${game.wave}`, 12, 22);
@@ -934,7 +1169,7 @@ export class Renderer {
     const pbW = 80;
     const pbH = 5;
     const pbX = 12;
-    const pbY = 28;
+    const pbY = 30;
     ctx.fillStyle = 'rgba(255,255,255,0.15)';
     ctx.fillRect(pbX, pbY, pbW, pbH);
     ctx.fillStyle = cleared >= 1 ? '#00e676' : '#00bcd4';
@@ -942,18 +1177,18 @@ export class Renderer {
 
     // Neural stacks HUD (NEXUS C2 Stack Amplifier)
     if (game.neuralStacks > 0) {
-      ctx.font      = '10px monospace';
+      ctx.font      = '13px monospace';
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(0,229,255,0.65)';
-      ctx.fillText(`\u2B22 ${game.neuralStacks} stacks`, 12, 44);
+      ctx.fillText(`\u2B22 ${fmt(game.neuralStacks)} stacks`, 12, 50);
     }
 
     // Lure type indicator (NEXUS A1 Lure Protocols)
     if (game.lureType) {
-      ctx.font      = '10px monospace';
+      ctx.font      = '13px monospace';
       ctx.textAlign = 'left';
       ctx.fillStyle = 'rgba(0,229,255,0.5)';
-      const lureY   = game.neuralStacks > 0 ? 57 : 44;
+      const lureY   = game.neuralStacks > 0 ? 66 : 50;
       ctx.fillText(`lure: ${game.lureType.toLowerCase()}`, 12, lureY);
     }
 
@@ -972,13 +1207,13 @@ export class Renderer {
       ctx.textBaseline = 'middle';
 
       // Overkill label — white with red glow
-      ctx.font      = 'bold 18px monospace';
+      ctx.font      = 'bold 23px monospace';
       ctx.fillStyle = '#ffffff';
       if (game.quality !== 'low') { ctx.shadowBlur = 22; ctx.shadowColor = '#ff1744'; }
-      ctx.fillText(overkillLabel, 0, -22);
+      ctx.fillText(overkillLabel, 0, -26);
 
       // Countdown line — large red
-      ctx.font      = 'bold 28px monospace';
+      ctx.font      = 'bold 35px monospace';
       ctx.fillStyle = '#ff1744';
       ctx.shadowBlur = game.quality !== 'low' ? 28 : 0;
       ctx.fillText(`OBLITERATE IN ${secs}`, 0, 10);
@@ -1003,7 +1238,7 @@ export class Renderer {
 
     ctx.fillStyle   = COLORS.text;
     ctx.textAlign   = 'center';
-    ctx.font        = '11px monospace';
+    ctx.font        = '14px monospace';
     ctx.fillText(`${fmt(Math.ceil(t.hp))} / ${fmt(t.maxHp)}`, canvas.width / 2, barY - 3);
 
     // Laser cooldown indicator
@@ -1018,9 +1253,9 @@ export class Renderer {
       ctx.fillStyle = COLORS.laser;
       ctx.fillRect(indX, indY, indW * pct, indH);
       ctx.fillStyle = 'rgba(255,64,129,0.5)';
-      ctx.font      = '9px monospace';
+      ctx.font      = '11px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText('LASER', canvas.width / 2, indY + indH + 8);
+      ctx.fillText('LASER', canvas.width / 2, indY + indH + 10);
     }
 
     // FPS counter — colour shifts red when below 55
@@ -1028,32 +1263,14 @@ export class Renderer {
     const fpsColor = fps < 45 ? '#ff1744' : fps < 55 ? '#ffea00' : 'rgba(255,255,255,0.28)';
     ctx.textAlign  = 'right';
     ctx.fillStyle  = fpsColor;
-    ctx.font       = '10px monospace';
+    ctx.font       = '13px monospace';
     const fpsLabel = game.autoQuality
       ? `${fps} fps  AUTO:${game.quality.toUpperCase()}`
       : `${fps} fps`;
     ctx.fillText(fpsLabel, canvas.width - 12, 22);
 
-    // Currency popups — +$N floaters above the killed enemy that drift up and fade
-    const DT = 1 / 60;
-    game.currencyPopups = game.currencyPopups.filter(p => {
-      p.t -= DT;
-      if (p.t <= 0) return false;
-      p.y -= 40 * DT; // drift upward
-      const alpha = Math.min(1, p.t / 0.3); // fade out over last 0.3s
-      ctx.save();
-      ctx.globalAlpha = alpha;
-      ctx.fillStyle   = COLORS.currency;
-      ctx.shadowBlur  = game.quality === 'high' ? 6 : 0;
-      ctx.shadowColor = COLORS.currency;
-      ctx.font        = '11px monospace';
-      ctx.textAlign   = 'center';
-      ctx.fillText(`+$${fmt(p.amount)}`, p.x, p.y);
-      ctx.restore();
-      return true;
-    });
-
     // Skull popups — execute kills float a skull upward and fade
+    const DT = 1 / 60;
     if (game.quality === 'low') { game.skullPopups = []; } else game.skullPopups = game.skullPopups.filter(p => {
       p.t -= DT;
       if (p.t <= 0) return false;
@@ -1064,7 +1281,7 @@ export class Renderer {
       ctx.textAlign    = 'center';
       ctx.textBaseline = 'middle';
       // Draw a bold "X" marker in red as the base so it always renders
-      ctx.font      = 'bold 20px monospace';
+      ctx.font      = 'bold 25px monospace';
       ctx.fillStyle = '#ff1744';
       if (game.quality === 'high') {
         ctx.shadowBlur  = 12;
@@ -1073,7 +1290,7 @@ export class Renderer {
       ctx.fillText('✕', p.x, p.y + 1);
       // Overlay the skull emoji at a larger size
       ctx.shadowBlur = 0;
-      ctx.font = '22px sans-serif';
+      ctx.font = '28px sans-serif';
       ctx.fillText('💀', p.x, p.y);
       ctx.restore();
       return true;
@@ -1100,18 +1317,18 @@ export class Renderer {
     ctx.textAlign   = 'center';
 
     ctx.fillStyle = '#00e676';
-    ctx.font      = 'bold 20px monospace';
+    ctx.font      = 'bold 25px monospace';
     if (game.quality === 'high') { ctx.shadowBlur = 10; ctx.shadowColor = '#00e676'; }
-    ctx.fillText(`Wave ${game.lastWave} complete!`, canvas.width / 2, anchorY);
+    ctx.fillText(`Wave ${fmt(game.lastWave)} complete!`, canvas.width / 2, anchorY);
 
     ctx.shadowBlur = 0;
     ctx.fillStyle  = COLORS.currency;
-    ctx.font       = '15px monospace';
-    ctx.fillText(`+$ ${fmt(game.lastWaveEarned)} earned`, canvas.width / 2, anchorY + 22);
+    ctx.font       = '19px monospace';
+    ctx.fillText(`+$ ${fmt(game.lastWaveEarned)} earned`, canvas.width / 2, anchorY + 28);
 
     ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    ctx.font      = '11px monospace';
-    ctx.fillText('next wave incoming...', canvas.width / 2, anchorY + 40);
+    ctx.font      = '14px monospace';
+    ctx.fillText('next wave incoming...', canvas.width / 2, anchorY + 52);
 
     ctx.restore();
   }
@@ -1124,24 +1341,24 @@ export class Renderer {
 
     ctx.textAlign = 'center';
     ctx.fillStyle = '#ff1744';
-    ctx.font      = 'bold 32px monospace';
-    ctx.fillText('TOWER DESTROYED', canvas.width / 2, canvas.height / 2 - 36);
+    ctx.font      = 'bold 40px monospace';
+    ctx.fillText('TOWER DESTROYED', canvas.width / 2, canvas.height / 2 - 46);
 
     ctx.fillStyle = COLORS.text;
+    ctx.font      = '23px monospace';
+    ctx.fillText(`Fell on wave ${game.wave}`, canvas.width / 2, canvas.height / 2 + 4);
+
+    ctx.fillStyle = COLORS.currency;
     ctx.font      = '18px monospace';
-    ctx.fillText(`Fell on wave ${game.wave}`, canvas.width / 2, canvas.height / 2 + 2);
+    ctx.fillText(`Best: wave ${game.bestWave}`, canvas.width / 2, canvas.height / 2 + 32);
 
     ctx.fillStyle = COLORS.currency;
-    ctx.font      = '14px monospace';
-    ctx.fillText(`Best: wave ${game.bestWave}`, canvas.width / 2, canvas.height / 2 + 26);
-
-    ctx.fillStyle = COLORS.currency;
-    ctx.font      = '13px monospace';
-    ctx.fillText(`Total currency: $ ${fmt(game.currency)}`, canvas.width / 2, canvas.height / 2 + 48);
+    ctx.font      = '16px monospace';
+    ctx.fillText(`Total currency: $ ${fmt(game.currency)}`, canvas.width / 2, canvas.height / 2 + 56);
 
     ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    ctx.font      = '12px monospace';
+    ctx.font      = '15px monospace';
     const restartWave = Math.max(1, Math.floor((game.wave - 1) / 10) * 10 + 1);
-    ctx.fillText(`upgrades kept — restarting from wave ${restartWave}...`, canvas.width / 2, canvas.height / 2 + 68);
+    ctx.fillText(`upgrades kept — restarting from wave ${restartWave}...`, canvas.width / 2, canvas.height / 2 + 80);
   }
 }

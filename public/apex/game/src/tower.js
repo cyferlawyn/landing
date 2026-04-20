@@ -50,10 +50,7 @@ export class Tower {
     // Prestige: ring stun
     this.ringStunDuration  = 0;   // seconds
 
-    // Prestige: shield
-    this.shieldChargesMax  = 0;
-    this.shieldCharges     = 0;
-    this.invulnTimer       = 0;   // seconds of invulnerability remaining
+    this.invulnTimer       = 0;   // seconds of invulnerability remaining (Resurgence)
 
     // Shop late-game upgrades
     this.overchargeN       = 0;     // 0 = not unlocked; otherwise every Nth shot deals ×4 dmg
@@ -79,6 +76,23 @@ export class Tower {
     // Prestige: obliterate
     this.obliterateDelay   = 0;     // seconds countdown after 10× overkill (0 = disabled)
 
+    // Prestige: high-end talents
+    this.voidSurgeMult        = 1.0;  // global DPS multiplier (all weapons)
+    this.forgeDmg             = 0;    // flat bonus added to tower.damage before multipliers
+    this.overchargeAmp        = 0;    // extra overcharge multiplier beyond base ×4
+    this.echoShotChance       = 0;    // 0–0.75: chance to fire extra volley (multi-shot only)
+    this.arcMasteryJumps      = 0;    // extra chain lightning jumps
+    this.arcMasteryDmgMult    = 1.0;  // per-jump escalating damage (1.20 when arcMasteryJumps > 0)
+    this.detonationRadiusMult = 1.0;  // explosive radius multiplier (applied on top of shop radius)
+    this.detonationSlow       = 0;    // seconds of slow applied by each explosion
+    this.arsenalFireRateBonus = 0;    // additive bonus to fire rate (×1.05 per tier = 0.05/tier)
+    this.arsenalProjBonus     = 0;    // extra simultaneous targets beyond shop multiShotCount
+    this.apexBossExecute      = 0;    // execute threshold that applies specifically to Bosses
+    this.apexFireRateBurst    = 0;    // fire rate bonus fraction on execute kill
+    this.apexBurstDuration    = 3.0;  // duration of Apex fire rate burst in seconds
+    this.apexBurstTimer       = 0;    // countdown for active Apex fire rate burst
+    this.shardCovenantBonus   = 1.0;  // wave-start multiplier from Shard Covenant (sampled at beginWave)
+
     // Visual
     this.x               = 0;
     this.y               = 0;
@@ -88,18 +102,8 @@ export class Tower {
 
   // Called by enemy when it reaches the tower
   takeDamage(amount, game) {
-    // Invulnerability window (from shield proc)
+    // Invulnerability window (Resurgence proc)
     if (this.invulnTimer > 0) return;
-
-    // Shield absorbs the hit and grants invulnerability
-    if (this.shieldCharges > 0) {
-      this.shieldCharges -= 1;
-      this.invulnTimer    = 1.5;
-      this.hitFlash       = 0.25;
-      audio.towerHit();
-      if (game && game.particles && game.quality !== 'low') game.particles.emitTowerHit(this.x, this.y);
-      return;
-    }
 
     this.hp       -= amount;
 
@@ -122,8 +126,16 @@ export class Tower {
     if (this.hitFlash  > 0) this.hitFlash  -= dt;
     if (this.invulnTimer > 0) this.invulnTimer -= dt;
 
-    // Shard passive × traitor pet bonus × faction (neural stacks) × base damage for all weapons this frame
-    this._dmgMult = game.shardDmgMult() * game.traitorDmgMult() * game.factionDmgMult();
+    // Shard passive × traitor pet bonus × faction (neural stacks) × WARBORN (rush+fury) × VANGUARD (spoils) for all weapons this frame
+    this._dmgMult = game.shardDmgMult() * game.traitorDmgMult() * game.factionDmgMult()
+      * (game.rushDmgMult?.() ?? 1.0)
+      * (game.furyDmgMult?.() ?? 1.0)
+      * (game.vanguardSpoilsDmgMult?.() ?? 1.0)
+      * this.voidSurgeMult
+      * this.shardCovenantBonus;
+
+    // Apex Predator: count down active fire-rate burst
+    if (this.apexBurstTimer > 0) this.apexBurstTimer -= dt;
 
     this._updateMainGun(dt, game);
     if (this.ringTier > 0)  this._updateRings(dt, game);
@@ -136,17 +148,19 @@ export class Tower {
     this.fireCooldown -= dt;
     if (this.fireCooldown > 0) return;
 
+    // Eternal Arsenal: extend target count beyond shop multiShotCount
+    const effectiveShotCount = this.multiShotCount + this.arsenalProjBonus;
     const r2      = this.range * this.range;
-    const targets = _nearestEnemies(game.enemyPool.pool, this, this.multiShotCount, r2);
+    const targets = _nearestEnemies(game.enemyPool.pool, this, effectiveShotCount, r2);
     if (targets.length === 0) return;
 
-    // Overcharge: every Nth shot deals ×4 damage
+    // Overcharge: every Nth shot deals ×(4 + overchargeAmp) damage
     let overchargeMult = 1;
     if (this.overchargeN > 0) {
       this.overchargeCounter += 1;
       if (this.overchargeCounter >= this.overchargeN) {
         this.overchargeCounter = 0;
-        overchargeMult = 4;
+        overchargeMult = 4 + this.overchargeAmp;
       }
     }
 
@@ -154,12 +168,25 @@ export class Tower {
       this._fireAt(target, game, this.x, this.y, overchargeMult);
     }
 
+    // Echo Shot: chance to fire a free extra volley (only when multi-shot is active)
+    if (this.echoShotChance > 0 && this.multiShotCount > 1 && Math.random() < this.echoShotChance) {
+      for (const target of targets) {
+        this._fireAt(target, game, this.x, this.y, overchargeMult);
+      }
+    }
+
     // Fire sound — pick variant based on active modes
     if (this.spreadShot)              audio.fireSpread();
-    else if (this.multiShotCount > 1) audio.fireMulti();
+    else if (effectiveShotCount > 1)  audio.fireMulti();
     else                              audio.fireSingle();
 
-    this.fireCooldown = 1 / this.fireRate;
+    const overdriveMult = game.overdriveFireRateMult?.() ?? 1.0;
+    const rampageMult   = game.rampageFireRateMult?.()   ?? 1.0;
+    // Eternal Arsenal: bonus fire rate stacks additively; Apex Predator: +50% burst
+    const apexMult      = (this.apexBurstTimer > 0 && this.apexFireRateBurst > 0)
+                          ? (1 + this.apexFireRateBurst) : 1.0;
+    const arsenalMult   = 1 + this.arsenalFireRateBonus;
+    this.fireCooldown = 1 / (this.fireRate * overdriveMult * rampageMult * apexMult * arsenalMult);
   }
 
   _fireAt(target, game, ox, oy, overchargeMult = 1) {
@@ -171,8 +198,19 @@ export class Tower {
 
     // Crit roll — applied to the damage passed into the projectile
     const isCrit = this.critChance > 0 && Math.random() < this.critChance;
-    const dmg    = Math.round(this.damage * this._dmgMult * (isCrit ? this.critMult : 1) * overchargeMult);
+    // VANGUARD A3: Spoils of War adds flat crit damage bonus
+    const spoilsCritAdd = game.vanguardSpoilsCritAdd?.() ?? 0;
+    const effectiveCritMult = this.critMult + spoilsCritAdd;
+    // forgeDmg: flat bonus applied before all multipliers
+    const baseDmg = this.damage + this.forgeDmg;
+    const dmg    = Math.round(baseDmg * this._dmgMult * (isCrit ? effectiveCritMult : 1) * overchargeMult);
     const isOC   = overchargeMult > 1;
+    // Detonation Field: scale explosive radius by prestige multiplier
+    const effExplosiveRadius = this.explosiveRadius > 0
+      ? Math.round(this.explosiveRadius * this.detonationRadiusMult)
+      : 0;
+    // Arc Mastery: extra chain jumps on top of shop chainJumps
+    const effChainJumps = this.chainJumps + this.arcMasteryJumps;
 
     if (this.spreadShot) {
       const baseA = Math.atan2(ny, nx);
@@ -180,7 +218,7 @@ export class Tower {
       const extra = this.spreadPellets - 1;
 
       game.projectilePool.fire(ox, oy, nx * this.projectileSpeed, ny * this.projectileSpeed,
-        dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold, this.ricochetCount, isOC);
+        dmg, effExplosiveRadius, effChainJumps, this.executeThreshold, this.ricochetCount, isOC);
 
       const step = extra > 0 ? half / Math.ceil(extra / 2) : 0;
       for (let i = 1; i <= extra; i++) {
@@ -188,11 +226,11 @@ export class Tower {
         const offset = Math.ceil(i / 2) * step * side;
         const a      = baseA + offset;
         game.projectilePool.fire(ox, oy, Math.cos(a) * this.projectileSpeed, Math.sin(a) * this.projectileSpeed,
-          dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold, this.ricochetCount, isOC);
+          dmg, effExplosiveRadius, effChainJumps, this.executeThreshold, this.ricochetCount, isOC);
       }
     } else {
       game.projectilePool.fire(ox, oy, nx * this.projectileSpeed, ny * this.projectileSpeed,
-        dmg, this.explosiveRadius, this.chainJumps, this.executeThreshold, this.ricochetCount, isOC);
+        dmg, effExplosiveRadius, effChainJumps, this.executeThreshold, this.ricochetCount, isOC);
     }
   }
 
@@ -243,8 +281,11 @@ export class Tower {
           if (this.ringStunDuration > 0) {
             e.stunUntil = (game.elapsed ?? 0) + this.ringStunDuration;
           }
-          if (e.hp <= 0 || (this.executeThreshold > 0 && e.hp / e.maxHp < this.executeThreshold)) {
+          if (e.hp <= 0 || (this.executeThreshold > 0 && e.hp / e.maxHp < this.executeThreshold)
+              || (this.apexBossExecute > 0 && e.type === EnemyType.BOSS && e.hp / e.maxHp < this.apexBossExecute)) {
+            const wasExecute = e.hp > 0;
             e.hp = 0;
+            if (wasExecute && this.apexFireRateBurst > 0) this.apexBurstTimer = this.apexBurstDuration;
             _towerKillEnemy(e, game);
           }
           break;
@@ -294,8 +335,11 @@ export class Tower {
             e.slowUntil  = (game.elapsed ?? 0) + this.laserSlowDuration;
             e.slowFactor = this.laserSlowFactor;
           }
-          if (e.hp <= 0 || (this.executeThreshold > 0 && e.hp / e.maxHp < this.executeThreshold)) {
+          if (e.hp <= 0 || (this.executeThreshold > 0 && e.hp / e.maxHp < this.executeThreshold)
+              || (this.apexBossExecute > 0 && e.type === EnemyType.BOSS && e.hp / e.maxHp < this.apexBossExecute)) {
+            const wasExecute = e.hp > 0;
             e.hp = 0;
+            if (wasExecute && this.apexFireRateBurst > 0) this.apexBurstTimer = this.apexBurstDuration;
             _towerKillEnemy(e, game);
           }
         }
@@ -342,7 +386,7 @@ function _dist2(a, b) {
 }
 
 function _spawnCurrencyPopup(amount, game, x, y) {
-  game.currencyPopups.push({ amount, x, y, t: 0.9 });
+  // Currency popups removed — no-op kept so call sites compile without changes
 }
 
 function _towerKillEnemy(e, game) {
@@ -352,6 +396,13 @@ function _towerKillEnemy(e, game) {
   game.waveKills  += 1;
   game.logEarned(earned);
   _spawnCurrencyPopup(earned, game, e.x, e.y);
+  // WARBORN Blood Rush: any kill resets decay timer and grants a stack
+  if (game.warbornBloodRush) {
+    game.addRushStacks(1);
+    game.rushDecayTimer      = 3.0;
+    game.rushKillTimer       = 0;
+    game.rushDecayProtected  = false;
+  }
   // Traitor capture roll
   const pet = game.traitorSystem?.tryCapture(e, game.wave, game);
   if (pet) {
@@ -366,13 +417,14 @@ function _towerKillEnemy(e, game) {
   game.deathRings.push({ x: e.x, y: e.y, r: e.radius * 2.5, t: 0.35, color: e.color });
   if (e.type === EnemyType.BOSS) {
     audio.deathBoss(); game.edgeFlash = 0.5; game.awardShards(game.wave);
+    game.vanguardBossKilledThisWave = true;
   } else if (e.type === EnemyType.COLOSSUS) {
     audio.deathBoss();
     // Release 3 drones on death
     for (let i = 0; i < 3; i++) {
       const angle = (Math.PI * 2 / 3) * i;
       game.enemyPool.spawn(EnemyType.DRONE, Math.max(1, game.wave - 1),
-        e.x + Math.cos(angle) * 20, e.y + Math.sin(angle) * 20);
+        e.x + Math.cos(angle) * 20, e.y + Math.sin(angle) * 20, game);
     }
   } else if (e.type === EnemyType.BOMBER) {
     _bomberDetonate(e, game);
@@ -388,14 +440,36 @@ function _towerKillEnemy(e, game) {
 }
 
 // Returns the expected (normalized) damage of a single regular shot, factoring in:
-// base damage (incl. Damage upgrade), shard multiplier, traitor bonus,
-// and expected crit value — but NOT overcharge, spread, explosive, or other modifiers.
+// base damage (incl. Damage upgrade), shard multiplier, traitor bonus, faction stacks,
+// WARBORN rush/fury, and expected crit value — but NOT overcharge, spread, explosive, or other modifiers.
+// Returns the expected (normalized) damage of a single shot event against a single target, factoring in:
+// base damage (incl. Damage upgrade + forgeDmg), shard multiplier, traitor bonus, faction stacks,
+// WARBORN rush/fury, VANGUARD spoils, voidSurgeMult, shardCovenantBonus, crit (chance × mult),
+// overcharge expected factor, execute HP skip factor, spread pellet count, and echo shot chance.
+// NOTE: WARBORN capstone HP%-removal is NOT included here — it is added at the call site in
+// checkObliterateAtWaveStart() because it scales with enemy HP, not a flat dmg multiplier.
 export function normalizedShotDamage(tower, game) {
-  const dmgMult        = game.shardDmgMult() * game.traitorDmgMult() * game.factionDmgMult();
-  const critFactor     = 1 + tower.critChance * (tower.critMult - 1);
-  // Overcharge: every N-th shot is ×4; expected factor = (N−1 + 4) / N = 1 + 3/N
-  const overchargeFactor = tower.overchargeN > 0 ? 1 + 3 / tower.overchargeN : 1;
+  const dmgMult        = game.shardDmgMult() * game.traitorDmgMult() * game.factionDmgMult()
+                         * (game.rushDmgMult?.() ?? 1.0)
+                         * (game.furyDmgMult?.() ?? 1.0)
+                         * (game.vanguardSpoilsDmgMult?.() ?? 1.0)
+                         * tower.voidSurgeMult
+                         * tower.shardCovenantBonus;
+  const spoilsCritAdd  = game.vanguardSpoilsCritAdd?.() ?? 0;
+  const effectiveCritMult = tower.critMult + spoilsCritAdd;
+  const critFactor     = 1 + tower.critChance * (effectiveCritMult - 1);
+  // Overcharge: every N-th shot is ×(4 + overchargeAmp); expected factor = (N−1 + mult) / N
+  const ochMult        = 4 + tower.overchargeAmp;
+  const overchargeFactor = tower.overchargeN > 0 ? 1 + (ochMult - 1) / tower.overchargeN : 1;
   // Execute: skips the last `threshold` fraction of every enemy's HP
   const executeFactor  = tower.executeThreshold > 0 ? 1 / (1 - tower.executeThreshold) : 1;
-  return tower.damage * dmgMult * critFactor * overchargeFactor * executeFactor;
+  // forgeDmg: flat bonus before multipliers
+  const baseDmg        = tower.damage + tower.forgeDmg;
+  // Spread shot: all pellets hit the same primary target simultaneously — multiply by pellet count
+  const spreadFactor   = tower.spreadShot ? tower.spreadPellets : 1;
+  // Echo Shot: expected extra volley factor when multi-shot is active
+  const echoFactor     = (tower.echoShotChance > 0 && tower.multiShotCount > 1)
+                         ? (1 + tower.echoShotChance) : 1;
+
+  return baseDmg * dmgMult * critFactor * overchargeFactor * executeFactor * spreadFactor * echoFactor;
 }

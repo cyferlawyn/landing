@@ -1194,3 +1194,40 @@ html, body {
   opacity: 0.3;
   cursor: default;
 }
+
+/* ── VANGUARD: faction choice countdown ──────────────────────────────────── */
+
+#faction-choice-countdown {
+  margin-top: 14px;
+  font-size: 11px;
+  color: rgba(118,255,3,0.65);
+  letter-spacing: 1px;
+  text-align: center;
+}
+
+/* ── ENDLESS WAR: auto-ascension row in ascend overlay ───────────────────── */
+
+#auto-ascension-row {
+  margin: 6px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.55);
+}
+
+#auto-ascension-row label {
+  white-space: nowrap;
+}
+
+#auto-ascension-select {
+  background: #0d0d1a;
+  color: #e0e0e0;
+  border: 1px solid rgba(255,214,0,0.4);
+  border-radius: 2px;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+

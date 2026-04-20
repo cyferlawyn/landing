@@ -91,27 +91,51 @@ function patchPrestigeCards() {
   if (showAscend) {
     const active = game.pendingShards > 0;
     ascendBtn.disabled = !active;
-    const label = active ? `ASCEND (+${game.pendingShards} ◆)` : 'ASCEND (no ◆ yet)';
+    const label = active ? `ASCEND (+${fmt(game.pendingShards)} ◆)` : 'ASCEND (no ◆ yet)';
     if (ascendBtn.textContent !== label) ascendBtn.textContent = label;
+  }
+
+  // Auto-ascension dropdown — show if ENDLESS WAR capstone rank > 0 (cross-faction permanent unlock).
+  // Requires at least one prior ascension (no point showing it otherwise).
+  const autoAscRow = document.getElementById('auto-ascension-row');
+  const autoAscEl2 = document.getElementById('auto-ascension-select');
+  if (autoAscRow && autoAscEl2) {
+    const endlessWar  = (game.factionSystem?.permanent?.vanguard?.capstoneRank ?? 0) > 0;
+    const showAutoAsc = showPrestige && endlessWar;
+    autoAscRow.classList.toggle('hidden', !showAutoAsc);
+    if (showAutoAsc && autoAscEl2.value !== (game.autoAscensionMode ?? 'off')) {
+      autoAscEl2.value = game.autoAscensionMode ?? 'off';
+    }
   }
 
   if (!showPrestige) return;
 
   // Shard balance
   const shardEl = document.getElementById('prestige-shard-value');
-  if (shardEl.textContent !== String(game.shards)) shardEl.textContent = fmt(game.shards);
+  const shardText = fmt(game.shards);
+  if (shardEl.textContent !== shardText) shardEl.textContent = shardText;
 
   // Passive line — based on totalShardsEarned (spending shards never reduces the bonus)
   const passiveLine = document.getElementById('prestige-passive-line');
   const totalShards = game.totalShardsEarned;
-  const mult = (1 + totalShards * 0.10).toFixed(1);
-  const passiveText = `Shard bonus: ×${mult} dmg (${totalShards} total ◆)`;
+  const mult = fmt(game.shardDmgMult());
+  const passiveText = `Shard bonus: ×${mult} dmg (${fmt(totalShards)} total ◆)`;
   if (passiveLine.textContent !== passiveText) passiveLine.textContent = passiveText;
 
   // Prestige upgrade cards
   for (const entry of prestigeShop.catalogue) {
     const card = document.querySelector(`.prestige-card[data-upg="${entry.id}"]`);
     if (!card) continue;
+
+    // Disabled upgrades — grey out and block purchase
+    if (entry.disabled) {
+      card.classList.add('is-maxed');
+      const tierEl = card.querySelector('[data-tier]');
+      if (tierEl && tierEl.textContent !== '[OFF]') tierEl.textContent = '[OFF]';
+      const btn = card.querySelector('.prestige-buy-btn');
+      setBtn(btn, 'DISABLED', true, true);
+      continue;
+    }
 
     const tier   = prestigeShop.tier(entry.id);
     const maxed  = prestigeShop.isMaxed(entry.id);
@@ -506,11 +530,13 @@ function patchFactionTab() {
     if (overlay.classList.contains('hidden')) {
       _buildFactionChoiceCards(fs);
       overlay.classList.remove('hidden');
+      _startFactionChoiceCountdown(fs);
     }
     return; // don't patch tree while choice is pending
   } else {
     if (!overlay.classList.contains('hidden')) {
       overlay.classList.add('hidden');
+      _clearFactionChoiceCountdown();
     }
   }
 
@@ -525,10 +551,26 @@ function patchFactionTab() {
   let statusText = 'No faction active.';
   if (fid) {
     const f = FACTIONS[fid];
-    const dmgBonus  = game.stackAmplifier ? `×${game.factionDmgMult().toFixed(2)} dmg` : '';
-    const currBonus = game.stackAmplifier ? `+${((game.factionCurrencyMult() - 1) * 100).toFixed(1)}% currency` : '';
-    const bonuses   = [dmgBonus, currBonus].filter(Boolean).join('  ');
-    statusText = `[${f.name}]${bonuses ? '  ' + bonuses : ''}`;
+    if (fid === 'nexus') {
+      const dmgBonus  = game.stackAmplifier ? `×${game.factionDmgMult().toFixed(2)} dmg` : '';
+      const currBonus = game.stackAmplifier ? `+${((game.factionCurrencyMult() - 1) * 100).toFixed(1)}% currency` : '';
+      const bonuses   = [dmgBonus, currBonus].filter(Boolean).join('  ');
+      statusText = `[${f.name}]${bonuses ? '  ' + bonuses : ''}`;
+    } else if (fid === 'warborn') {
+      const rushBonus = game.warbornBloodRush && game.rushStacks > 0
+        ? `  rush ×${(1 + game.rushStacks * 0.03).toFixed(2)} dmg`
+        : '';
+      statusText = `[${f.name}]${rushBonus}`;
+    } else if (fid === 'vanguard') {
+      const parts = [];
+      if (game.vanguardAdvanceGuard && game.vanguardSpeedBonus > 0)
+        parts.push(`spd +${Math.round(game.vanguardSpeedBonus * 100)}%`);
+      if (game.vanguardSpoilsOfWar)
+        parts.push(`spoils +${game.vanguardSpoilsStacks * 5}% dmg/crit`);
+      statusText = `[${f.name}]${parts.length ? '  ' + parts.join('  ') : ''}`;
+    } else {
+      statusText = `[${f.name}]`;
+    }
   }
   if (statusLine.textContent !== statusText) statusLine.textContent = statusText;
 
@@ -577,13 +619,78 @@ function patchFactionTab() {
     if (csBtn.textContent !== label) csBtn.textContent = label;
     if (csRank) {
       let rankText = `Rank ${rank}`;
-      if (rank > 0) {
+      if (fid === 'nexus' && rank > 0) {
         const runStacks = Math.max(0, game.neuralStacks - game.permanentNeuralStacks);
         const projection = Math.floor(runStacks * rank / 100);
         rankText += `  — preserves ${rank}% (≈${projection} stacks) of run stacks`;
+      } else if (fid === 'warborn' && rank > 0) {
+        const mortarPct = (5 + (rank - 1) * 0.1).toFixed(1);
+        const projPct   = (rank * 0.1).toFixed(1);
+        const cdRed     = Math.min(30, rank * 0.1).toFixed(1);
+        rankText += `  — mortar: ${mortarPct}% HP  proj: ${projPct}% HP  cd -${cdRed}s`;
+      } else if (fid === 'vanguard' && rank > 0) {
+        const checkBoost = (rank * 25).toFixed(0);
+        rankText += `  — obliterate check ×${(1 + rank * 0.25).toFixed(2)}  (+${checkBoost}%)`;
       }
       if (csRank.textContent !== rankText) csRank.textContent = rankText;
     }
+  }
+}
+
+// Faction choice overlay countdown (Endless War capstone — all factions)
+let _factionChoiceCountdown   = null; // setInterval handle
+let _factionChoiceCountSecs   = 0;
+
+function _startFactionChoiceCountdown(fs) {
+  _clearFactionChoiceCountdown();
+  // Start countdown if Endless War capstone is unlocked (covers all factions)
+  const game = getApex()?.game;
+  const endlessWar = (game?.factionSystem?.permanent?.vanguard?.capstoneRank ?? 0) > 0;
+  if (!endlessWar) return;
+
+  const prevFaction = fs.activeFaction;
+  if (!prevFaction) return;
+
+  _factionChoiceCountSecs = 10;
+  _updateCountdownEl(_factionChoiceCountSecs);
+
+  _factionChoiceCountdown = setInterval(() => {
+    _factionChoiceCountSecs -= 1;
+    _updateCountdownEl(_factionChoiceCountSecs);
+    if (_factionChoiceCountSecs <= 0) {
+      _clearFactionChoiceCountdown();
+      // Auto-select previous faction
+      const apex = getApex();
+      if (apex && apex.game.pendingFactionChoice) {
+        document.getElementById('faction-choice-overlay').classList.add('hidden');
+        _factionTreeBuilt = false;
+        apex.completeAscend(prevFaction);
+        patchShopCards();
+        patchPrestigeCards();
+        patchFactionTab();
+        patchTraitorPanel();
+      }
+    }
+  }, 1000);
+}
+
+function _clearFactionChoiceCountdown() {
+  if (_factionChoiceCountdown !== null) {
+    clearInterval(_factionChoiceCountdown);
+    _factionChoiceCountdown = null;
+  }
+  _updateCountdownEl(null);
+}
+
+function _updateCountdownEl(secs) {
+  const el = document.getElementById('faction-choice-countdown');
+  if (!el) return;
+  if (secs === null || secs <= 0) {
+    el.textContent = '';
+    el.classList.add('hidden');
+  } else {
+    el.textContent = `Auto-selecting previous faction in ${secs}s...`;
+    el.classList.remove('hidden');
   }
 }
 
@@ -591,7 +698,7 @@ function _buildFactionChoiceCards(fs) {
   const cardsEl = document.getElementById('faction-choice-cards');
   cardsEl.innerHTML = '';
 
-  for (const fid of ['nexus', 'conclave', 'warborn']) {
+  for (const fid of ['nexus', 'warborn', 'vanguard']) {
     const f    = FACTIONS[fid];
     const card = document.createElement('div');
     card.className = 'faction-choice-card' + (f.comingSoon ? ' coming-soon' : '');
@@ -654,6 +761,7 @@ function wireFactionButtons() {
     if (!btn || btn.disabled) return;
     const fid = btn.dataset.factionPick;
     document.getElementById('faction-choice-overlay').classList.add('hidden');
+    _clearFactionChoiceCountdown();
     _factionTreeBuilt = false;
     getApex()?.completeAscend(fid);
     patchShopCards();
@@ -736,9 +844,12 @@ function wireButtons() {
     if (!apex) return;
     const { game } = apex;
     const totalAfter = game.shards + game.pendingShards;
-    const multAfter  = (1 + (game.totalShardsEarned + game.pendingShards) * 0.10).toFixed(1);
+    let shardCoeff = 0.10;
+    if (game.vanguardBattleHardened) shardCoeff *= 1.5;
+    if (game.vanguardShardMastery)   shardCoeff *= 2;
+    const multAfter  = (1 + (game.totalShardsEarned + game.pendingShards) * shardCoeff).toFixed(1);
     document.getElementById('ascend-confirm-sub').textContent =
-      `+${game.pendingShards} ◆  →  ${totalAfter} ◆ spendable  →  ×${multAfter} shard damage`;
+      `+${fmt(game.pendingShards)} ◆  →  ${fmt(totalAfter)} ◆ spendable  →  ×${multAfter} shard damage`;
     document.getElementById('ascend-overlay').classList.remove('hidden');
   });
 
@@ -775,6 +886,14 @@ function wireButtons() {
   document.getElementById('confirm-no').addEventListener('click', () => {
     document.getElementById('confirm-overlay').classList.add('hidden');
   });
+
+  // Auto-ascension dropdown (ENDLESS WAR capstone)
+  const autoAscEl = document.getElementById('auto-ascension-select');
+  if (autoAscEl) {
+    autoAscEl.addEventListener('change', e => {
+      getApex()?.setAutoAscensionMode?.(e.target.value);
+    });
+  }
 
   // Volume slider
   document.getElementById('volume-slider').addEventListener('input', e => {
@@ -815,6 +934,7 @@ window.addEventListener('load', () => {
     buildShopCards();
     buildPrestigeCards();
     wireButtons();
+    applyTabPrefs(loadPrefs()); // restore collapse state after DOM is ready
     patchShopCards();
     patchPrestigeCards();
     patchTraitorPanel();
