@@ -6,7 +6,15 @@ tags: ["idle-rpg", "devlog", "game-dev"]
 draft: false
 ---
 
-Two more systems landed in [idle-rpg](https://github.com/cyferlawyn/idle-rpg), the near-zero-player browser RPG I'm building in the open: **exhaustion pools** and **offline fast-forward**. Together they're the difference between "a toon that mashes one button forever" and something that actually behaves like it's living its own life.
+I've started a new project: [idle-rpg](https://github.com/cyferlawyn/idle-rpg), a near-zero-player browser RPG. You don't control a character in the usual sense — you have a toon (a paladin spreading their faith through the world) that walks, fights, gathers, crafts, and completes quests entirely on its own. Load the page, and it's already living its life. Close the tab, and it keeps living it without you.
+
+The pitch is somewhere between a Progress Quest clone and a tiny agent playing an RPG for you. Your job isn't to press the "attack" button — it's to be the toon's god: you nudge it toward a goal ("focus on quests," "grind woodcutting," "go pick a fight with that boss") and it figures out how to get there, folding your wish into everything else it's already juggling. The interesting design problem was never the RPG systems themselves — auto-battlers and skill grinds are well-trodden ground — it's that autonomy layer: how much of a brain does the toon get, and how does a player's "nudge" actually bias its decisions without turning into a chat window or a full manual control scheme dressed up as an idle game.
+
+Mechanically, the core loop is a fixed-interval world tick. Each tick, the toon's decision layer looks at its current state — location, skill levels, active quests, whatever pools are full or empty — and picks an action: travel somewhere, swing at a monster, chop wood, turn in a quest, or just rest. Actions resolve over one or more ticks (a fight is several rounds, a trip across the map takes real travel time), loot and XP land as they're earned, and the log/stat panels update with no input required to keep any of it moving. Left alone, the toon should look like it's making its own reasonable calls that happen to line up with plausible RPG behavior, rather than mashing whatever action scored highest a tick ago and then continuing to mash it forever.
+
+Where you come in: prayer. Quests (framed as converting or impressing townsfolk) generate prayer, which flows to you as the toon's god rather than staying with the toon — that's the in-fiction reason your influence grows over time. You spend prayer to issue directives that get pushed onto the toon's queue and worked through autonomously — pathing, fighting, retrying — until done, at which point it falls back to its own ambient judgment. It's meant to feel like being a quest-giver, not a puppeteer.
+
+Since the first commit, the game has grown a real skill set — nine progression skills across combat, three gathering skills (woodcutting, mining, fishing, plus thieving), and three crafting skills (cooking, smithing, alchemy) — a six-zone overworld with a difficulty gradient the toon actually has to travel across, a monster/loot/quest system with kill-steps that route into real fights, and a rendered 2D map with a collapsible combat/skills/stats HUD instead of a flat text log. The two most recent systems are the ones this post is actually about.
 
 ## What's new
 
@@ -29,7 +37,7 @@ Backing this is a new `localStorage` persistence layer — autosave on an interv
 ## Improvements
 
 - Movement now has a proper stat: an Agility skill drives real travel-speed formulas instead of a flat map-crossing time.
-- The XP curve is unified to quadratic across all eight skills, fixing a mismatch where combat and gathering leveled at different felt paces.
+- The XP curve is unified to quadratic across all nine skills, fixing a mismatch where combat and gathering leveled at different felt paces.
 - HUD overlays (combat/skills/stats) got a pass for narrow viewports — no more overlapping panels under 640px — and the fight screen is now a bounded bottom panel instead of covering the whole canvas.
 - Test coverage grew alongside all of this: unit tests for fatigue and concentration depletion/regen, an end-to-end combat integration test, and a cross-category suite that exercises HP/fatigue/concentration together rather than in isolation.
 
